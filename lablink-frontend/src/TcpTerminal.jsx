@@ -73,7 +73,7 @@ export function TcpTerminal({ session }) {
     setSubmitting(true)
     setError('')
     try {
-      await submitSession(session.id, logs, result)
+      await submitSession(session.id, result)
       sessionStorage.removeItem(`lablink-logs-${session.id}`)
       socket.current?.close()
       navigate('/student/submissions')
@@ -87,6 +87,6 @@ export function TcpTerminal({ session }) {
       <form className="terminal-input" onSubmit={send}><label htmlFor="command">Command</label><input id="command" autoComplete="off" value={command} onChange={event => setCommand(event.target.value)} disabled={connection !== 'CONNECTED'} placeholder={connection === 'CONNECTED' ? 'Type a command…' : 'Waiting for connection…'} /><button className="primary-button" disabled={connection !== 'CONNECTED' || !command.trim()}><Send size={17} /> Send</button></form></section>
     {error && <p className="form-error session-error" role="alert">{error}</p>}
     <div className="terminal-actions"><button className="secondary-button" disabled={connection !== 'CONNECTED'} onClick={() => socket.current?.close()}><Square size={16} /> Disconnect</button><button className="secondary-button" disabled={connection === 'CONNECTING' || connection === 'CONNECTED'} onClick={() => setAttempt(value => value + 1)}><RotateCcw size={16} /> Reconnect</button></div>
-    <section className="content-card submission-card"><div className="submission-title"><PlugZap size={20} /><div><h2>Submit your result</h2><p>Describe what you observed. The terminal log is included with your submission.</p></div></div><form onSubmit={submit}><label htmlFor="result">Your observation</label><textarea id="result" value={result} onChange={event => setResult(event.target.value)} required maxLength="2000" rows="4" placeholder="Describe the TCP connection and server responses…" /><button className="primary-button" disabled={submitting || logs.length === 0 || !result.trim() || connection === 'ERROR'}>{submitting ? 'Submitting…' : 'Submit result'} <Send size={17} /></button></form></section>
+    <section className="content-card submission-card"><div className="submission-title"><PlugZap size={20} /><div><h2>Submit your result</h2><p>Describe what you observed. The server-recorded transcript is included with your submission.</p></div></div><form onSubmit={submit}><label htmlFor="result">Your observation</label><textarea id="result" value={result} onChange={event => setResult(event.target.value)} required maxLength="2000" rows="4" placeholder="Describe the TCP connection and server responses…" /><button className="primary-button" disabled={submitting || !logs.some(entry => entry.direction === 'SERVER') || !result.trim() || connection === 'ERROR'}>{submitting ? 'Submitting…' : 'Submit result'} <Send size={17} /></button></form></section>
   </>
 }

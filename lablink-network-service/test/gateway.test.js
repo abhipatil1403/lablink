@@ -12,6 +12,7 @@ let tcp
 let gateway
 let wsUrl
 const states = []
+const transcript = []
 
 before(async () => {
   tcp = createTcpServer()
@@ -25,7 +26,11 @@ before(async () => {
     if (request.method === 'POST') {
       let body = ''
       request.on('data', chunk => { body += chunk })
-      request.on('end', () => { states.push(JSON.parse(body).status); response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}') })
+      request.on('end', () => {
+        if (request.url.endsWith('/log')) transcript.push(JSON.parse(body))
+        else states.push(JSON.parse(body).status)
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}')
+      })
     } else {
       response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ id: sessionId, experimentId: 'tcp-client-server', status: 'STARTING' }))
     }
@@ -91,6 +96,8 @@ test('two authenticated WebSockets receive independent TCP responses', async () 
     b.send(JSON.stringify({ type: 'command', command: 'echo B only' }))
     assert.deepEqual(await responseA, { type: 'response', text: 'PONG' })
     assert.deepEqual(await responseB, { type: 'response', text: 'ECHO: B only' })
+    assert.ok(transcript.some(entry => entry.direction === 'STUDENT' && entry.text === 'ping'))
+    assert.ok(transcript.some(entry => entry.direction === 'SERVER' && entry.text === 'PONG'))
   } finally { a.terminate(); b.terminate() }
 })
 

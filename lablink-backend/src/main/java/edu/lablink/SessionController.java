@@ -3,7 +3,6 @@ package edu.lablink;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.Comparator;
@@ -29,8 +28,7 @@ public class SessionController {
     }
 
     record StartRequest(@NotBlank String experimentId) {}
-    record LogEntry(@NotBlank String direction, @NotBlank @Size(max = 500) String text, @NotBlank String at) {}
-    record SubmissionRequest(@NotEmpty @Size(max = 100) List<@Valid LogEntry> logs, @NotBlank @Size(max = 2000) String result) {}
+    record SubmissionRequest(@NotBlank @Size(max = 2000) String result) {}
 
     @PostMapping("/sessions")
     public Map<String, Object> start(@Valid @RequestBody StartRequest input, HttpServletRequest request) {
@@ -54,6 +52,7 @@ public class SessionController {
         session.put("startTime", Instant.now().toString());
         session.put("endTime", null);
         session.put("createdAt", Instant.now().toString());
+        session.put("logs", List.of());
         repository.create("sessions", id, session);
         return session;
     }
@@ -78,14 +77,17 @@ public class SessionController {
         if (!List.of("RUNNING", "STOPPED").contains(session.get("status"))) {
             throw new ApiException(HttpStatus.CONFLICT, "Session cannot be submitted");
         }
+        Object transcript = session.get("logs");
+        if (!(transcript instanceof List<?> logs) || logs.stream().noneMatch(line ->
+                line instanceof Map<?, ?> entry && "SERVER".equals(entry.get("direction")))) {
+            throw new ApiException(HttpStatus.CONFLICT, "Run at least one command before submitting");
+        }
         Map<String, Object> submission = new HashMap<>();
         submission.put("id", id);
         submission.put("sessionId", id);
         submission.put("studentId", Access.uid(request));
         submission.put("experimentId", session.get("experimentId"));
-        submission.put("logs", input.logs().stream()
-                .map(entry -> Map.of("direction", entry.direction(), "text", entry.text(), "at", entry.at()))
-                .toList());
+        submission.put("logs", transcript);
         submission.put("result", input.result().trim());
         submission.put("grade", null);
         submission.put("feedback", null);

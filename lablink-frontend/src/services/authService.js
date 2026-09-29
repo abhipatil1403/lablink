@@ -12,6 +12,10 @@ export async function login(email, password) {
 }
 
 export async function register(name, email, password) {
+  if (requireAuth().currentUser?.email?.toLowerCase() === email.toLowerCase()) {
+    await apiRequest('/api/users/register', { method: 'POST', body: JSON.stringify({ name }) })
+    return { user: auth.currentUser }
+  }
   const credentials = await createUserWithEmailAndPassword(requireAuth(), email, password)
   await updateProfile(credentials.user, { displayName: name })
   await apiRequest('/api/users/register', { method: 'POST', body: JSON.stringify({ name }) })

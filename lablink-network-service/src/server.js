@@ -36,6 +36,8 @@ function bridge(ws, options) {
   let sessionId = null
   let validated = false
   let buffer = ''
+  let commandQueue = Promise.resolve()
+  let responseQueue = Promise.resolve()
   const timer = setTimeout(() => stop('Authentication timed out.'), 10_000)
   const send = message => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)) }
 
@@ -100,7 +102,11 @@ function bridge(ws, options) {
         if (buffer.length > 8192) { stop('Experiment server sent an oversized response.'); return }
         let newline = buffer.indexOf('\n')
         while (newline !== -1) {
-          send({ type: 'response', text: buffer.slice(0, newline).replace(/\r$/, '') })
+          const text = buffer.slice(0, newline).replace(/\r$/, '')
+          responseQueue = responseQueue.then(async () => {
+            await api(`/api/internal/sessions/${encodeURIComponent(sessionId)}/log`, 'POST', { direction: 'SERVER', text })
+            if (status === 'CONNECTED') send({ type: 'response', text })
+          }).catch(() => stop('Unable to record session transcript.'))
           buffer = buffer.slice(newline + 1)
           newline = buffer.indexOf('\n')
         }
@@ -115,7 +121,11 @@ function bridge(ws, options) {
       send({ type: 'error', message: 'Command is unavailable or invalid.' })
       return
     }
-    tcp.write(`${message.command}\n`)
+    const command = message.command
+    commandQueue = commandQueue.then(async () => {
+      await api(`/api/internal/sessions/${encodeURIComponent(sessionId)}/log`, 'POST', { direction: 'STUDENT', text: command })
+      if (status === 'CONNECTED') tcp.write(`${command}\n`)
+    }).catch(() => stop('Unable to record session transcript.'))
   })
   ws.on('close', () => {
     clearTimeout(timer)
