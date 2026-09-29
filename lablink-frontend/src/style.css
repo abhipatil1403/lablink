@@ -164,3 +164,12 @@ tbody tr:last-child td { border: 0; }
 @media (max-width: 1200px) { .faculty-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .faculty-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .heading-row { align-items: start; flex-direction: column; } }
 @media (max-width: 560px) { .faculty-metrics, .form-row { grid-template-columns: 1fr; } .filter-bar > * { max-width: none !important; flex: 1 1 100%; } }
+.admin-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.system-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+.system-card { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.system-card strong { font-size: .83rem; }
+.table-wrap select { border: 1px solid #ccd5e2; background: #fff; border-radius: 6px; padding: .45rem; font-size: .78rem; }
+.table-button { border: 0; background: transparent; color: #244daa; font-weight: 700; padding: 0; }
+.table-button:disabled { color: #a1a9b7; cursor: not-allowed; }
+@media (max-width: 1100px) { .admin-metrics, .system-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .admin-metrics, .system-grid { grid-template-columns: 1fr; } }

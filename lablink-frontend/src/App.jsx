@@ -6,13 +6,20 @@ import { logout } from './services/authService'
 import { AppLayout, StudentLayout } from './StudentLayout'
 import { ExperimentCatalog, ExperimentDetails, SessionDetails, StudentDashboard, StudentProfile, SubmissionDetails, SubmissionHistory } from './pages/StudentPages'
 import { FacultyDashboard, FacultyExperimentForm, FacultyExperiments, FacultyReview, FacultySessions, FacultySubmissions } from './pages/FacultyPages'
-import { BookOpen, ClipboardCheck, LayoutDashboard, Users } from 'lucide-react'
+import { AdminDashboard, AdminExperiments, AdminServers, AdminUsers } from './pages/AdminPages'
+import { BookOpen, ClipboardCheck, LayoutDashboard, Server, Users } from 'lucide-react'
 
 const facultyLinks = [
   { to: '/faculty', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/faculty/experiments', label: 'Experiments', icon: BookOpen },
   { to: '/faculty/sessions', label: 'Student sessions', icon: Users },
   { to: '/faculty/submissions', label: 'Submissions', icon: ClipboardCheck },
+]
+const adminLinks = [
+  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/admin/users', label: 'Users', icon: Users },
+  { to: '/admin/experiments', label: 'Experiments', icon: BookOpen },
+  { to: '/admin/servers', label: 'Servers', icon: Server },
 ]
 
 function Protected({ role, children }) {
@@ -22,11 +29,6 @@ function Protected({ role, children }) {
   if (error) return <main className="centered-state"><p role="alert">{error}</p><button onClick={() => logout()}>Log out</button></main>
   if (!profile || profile.role !== role) return <Navigate to={`/${profile?.role?.toLowerCase() || 'login'}`} replace />
   return children
-}
-
-function RoleHome({ role }) {
-  const { profile } = useAuth()
-  return <main className="shell"><p className="eyebrow">{role} workspace</p><h1>Welcome, {profile.name}</h1><p>Your laboratory workspace is being connected.</p><button onClick={() => logout()}>Log out</button></main>
 }
 
 function Start() {
@@ -58,7 +60,12 @@ export function App() {
       <Route path="/faculty/submissions" element={<FacultySubmissions />} />
       <Route path="/faculty/submissions/:id" element={<FacultyReview />} />
     </Route>
-    <Route path="/admin" element={<Protected role="ADMIN"><RoleHome role="ADMIN" /></Protected>} />
+    <Route element={<Protected role="ADMIN"><AppLayout role="ADMIN" links={adminLinks} /></Protected>}>
+      <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/admin/users" element={<AdminUsers />} />
+      <Route path="/admin/experiments" element={<AdminExperiments />} />
+      <Route path="/admin/servers" element={<AdminServers />} />
+    </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AuthProvider></BrowserRouter>
 }
