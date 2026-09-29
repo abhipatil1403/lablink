@@ -4,10 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.firebase.auth.FirebaseToken;
 import java.util.Map;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -34,6 +38,38 @@ class SessionControllerTest {
         ApiException error = assertThrows(ApiException.class,
                 () -> new SessionController(repository).start(new SessionController.StartRequest("udp-client-server"),
                         request("student-a", "STUDENT")));
+
+        assertEquals(HttpStatus.CONFLICT, error.status());
+    }
+
+    @Test
+    void submittingOwnedRunningSessionPersistsTranscriptAndCompletesSession() {
+        FirestoreRepository repository = mock(FirestoreRepository.class);
+        when(repository.find("sessions", "session-a")).thenReturn(Map.of(
+                "studentId", "student-a", "status", "RUNNING", "experimentId", "tcp-client-server"));
+        when(repository.find("submissions", "session-a")).thenReturn(null);
+        SessionController.SubmissionRequest input = new SessionController.SubmissionRequest(
+                List.of(new SessionController.LogEntry("SERVER", "PONG", "2026-09-30T00:00:00Z")), "Received PONG");
+
+        Map<String, Object> result = new SessionController(repository).submit("session-a", input, request("student-a", "STUDENT"));
+
+        assertEquals("SUBMITTED", result.get("status"));
+        assertEquals("student-a", result.get("studentId"));
+        verify(repository).create(eq("submissions"), eq("session-a"), any());
+        verify(repository).update(eq("sessions"), eq("session-a"), any());
+    }
+
+    @Test
+    void duplicateSubmissionIsRejected() {
+        FirestoreRepository repository = mock(FirestoreRepository.class);
+        when(repository.find("sessions", "session-a")).thenReturn(Map.of(
+                "studentId", "student-a", "status", "RUNNING", "experimentId", "tcp-client-server"));
+        when(repository.find("submissions", "session-a")).thenReturn(Map.of("id", "session-a"));
+        SessionController.SubmissionRequest input = new SessionController.SubmissionRequest(
+                List.of(new SessionController.LogEntry("SERVER", "PONG", "2026-09-30T00:00:00Z")), "Received PONG");
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> new SessionController(repository).submit("session-a", input, request("student-a", "STUDENT")));
 
         assertEquals(HttpStatus.CONFLICT, error.status());
     }

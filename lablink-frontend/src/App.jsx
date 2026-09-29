@@ -4,7 +4,7 @@ import { useAuth } from './authContext'
 import { LoginPage, RegisterPage } from './pages/AuthPages'
 import { logout } from './services/authService'
 import { StudentLayout } from './StudentLayout'
-import { ExperimentCatalog, ExperimentDetails, SessionDetails, StudentDashboard, StudentProfile, SubmissionHistory } from './pages/StudentPages'
+import { ExperimentCatalog, ExperimentDetails, SessionDetails, StudentDashboard, StudentProfile, SubmissionDetails, SubmissionHistory } from './pages/StudentPages'
 
 function Protected({ role, children }) {
   const { user, profile, loading, error } = useAuth()
@@ -35,6 +35,7 @@ export function App() {
       <Route path="/student" element={<StudentDashboard />} />
       <Route path="/student/experiments" element={<ExperimentCatalog />} />
       <Route path="/student/submissions" element={<SubmissionHistory />} />
+      <Route path="/student/submissions/:id" element={<SubmissionDetails />} />
       <Route path="/student/profile" element={<StudentProfile />} />
       <Route path="/experiment/:id" element={<ExperimentDetails />} />
       <Route path="/session/:id" element={<SessionDetails />} />

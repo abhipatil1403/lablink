@@ -4,6 +4,7 @@ import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.api.gax.rpc.AlreadyExistsException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +46,13 @@ public class FirestoreRepository {
         try {
             ref(collection, id).create(data).get(5, TimeUnit.SECONDS);
         } catch (Exception error) {
+            Throwable cause = error;
+            while (cause != null) {
+                if (cause instanceof AlreadyExistsException) {
+                    throw new ApiException(HttpStatus.CONFLICT, "Record already exists");
+                }
+                cause = cause.getCause();
+            }
             throw unavailable(error);
         }
     }

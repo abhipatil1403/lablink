@@ -105,6 +105,15 @@ public class SessionController {
                 .toList();
     }
 
+    @GetMapping("/submissions/{id}")
+    public Map<String, Object> submission(@PathVariable String id, HttpServletRequest request) {
+        Access.requireRole(request, "STUDENT");
+        Map<String, Object> submission = repository.find("submissions", id);
+        if (submission == null) throw new ApiException(HttpStatus.NOT_FOUND, "Submission not found");
+        Access.requireOwner(request, (String) submission.get("studentId"));
+        return submission;
+    }
+
     Map<String, Object> requireSession(String id) {
         Map<String, Object> session = repository.find("sessions", id);
         if (session == null) throw new ApiException(HttpStatus.NOT_FOUND, "Session not found");

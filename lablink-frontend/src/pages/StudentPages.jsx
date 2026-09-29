@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ClipboardList, Clock3, Server, Wifi } from 'lucide-react'
 import { useAuth } from '../authContext'
 import { getExperiment, listExperiments } from '../services/experimentService'
-import { createSession, getSession, listSubmissions } from '../services/sessionService'
+import { createSession, getSession, getSubmission, listSubmissions } from '../services/sessionService'
 import { TcpTerminal } from '../TcpTerminal'
 
 function useData(load, key) {
@@ -78,7 +78,15 @@ export function SubmissionHistory() {
   const { data, loading, error } = useData(loadHistory)
   const [submissions, experiments] = data || [[], []]
   const titles = Object.fromEntries(experiments.map(item => [item.id, item.title]))
-  return <><div className="page-heading"><p className="eyebrow">YOUR WORK</p><h1>Submission history</h1><p>Track reviews, grades, and feedback from faculty.</p></div><State loading={loading} error={error} empty={submissions.length === 0}><div className="table-wrap"><table><thead><tr><th>Experiment</th><th>Submitted</th><th>Status</th><th>Grade</th><th>Feedback</th></tr></thead><tbody>{submissions.map(item => <tr key={item.id}><td>{titles[item.experimentId] || item.experimentId}</td><td>{new Date(item.submittedAt).toLocaleString()}</td><td><span className={`badge ${item.status === 'REVIEWED' ? 'badge-success' : 'badge-warning'}`}>{item.status}</span></td><td>{item.grade ?? '—'}</td><td>{item.feedback || '—'}</td></tr>)}</tbody></table></div></State></>
+  return <><div className="page-heading"><p className="eyebrow">YOUR WORK</p><h1>Submission history</h1><p>Track reviews, grades, and feedback from faculty.</p></div><State loading={loading} error={error} empty={submissions.length === 0}><div className="table-wrap"><table><thead><tr><th>Experiment</th><th>Submitted</th><th>Status</th><th>Grade</th><th>Feedback</th></tr></thead><tbody>{submissions.map(item => <tr key={item.id}><td><Link to={`/student/submissions/${item.id}`}>{titles[item.experimentId] || item.experimentId}</Link></td><td>{new Date(item.submittedAt).toLocaleString()}</td><td><span className={`badge ${item.status === 'REVIEWED' ? 'badge-success' : 'badge-warning'}`}>{item.status}</span></td><td>{item.grade ?? '—'}</td><td>{item.feedback || '—'}</td></tr>)}</tbody></table></div></State></>
+}
+
+export function SubmissionDetails() {
+  const { id } = useParams()
+  const { data: submission, loading, error } = useData(getSubmission, id)
+  return <><Link className="back-link" to="/student/submissions"><ArrowLeft size={16} /> Submission history</Link><State loading={loading} error={error}>
+    {submission && <><div className="page-heading"><p className="eyebrow">SUBMISSION #{submission.id.slice(0, 8)}</p><h1>Experiment result</h1><p>Submitted {new Date(submission.submittedAt).toLocaleString()}</p></div><div className="detail-grid"><div className="detail-main"><section className="content-card"><h2>Your observation</h2><p>{submission.result}</p></section><section className="content-card"><h2>Session transcript</h2><div className="submission-logs">{submission.logs?.map((entry, index) => <div key={`${entry.at}-${index}`}><strong>{entry.direction === 'STUDENT' ? 'student>' : 'server>'}</strong><code>{entry.text}</code></div>)}</div></section></div><aside className="detail-side"><section className="content-card"><h2>Review</h2><p><span className={`badge ${submission.status === 'REVIEWED' ? 'badge-success' : 'badge-warning'}`}>{submission.status}</span></p><dl className="review-summary"><dt>Grade</dt><dd>{submission.grade ?? 'Pending review'}</dd><dt>Feedback</dt><dd>{submission.feedback || 'Faculty feedback will appear here.'}</dd></dl></section></aside></div></>}
+  </State></>
 }
 
 export function StudentProfile() {

@@ -137,3 +137,10 @@ tbody tr:last-child td { border: 0; }
 .submission-card textarea { width: 100%; resize: vertical; font: inherit; border-radius: 8px; padding: .8rem; border: 1px solid #c8d1df; }
 .submission-card .primary-button { justify-self: start; padding: 0 1.2rem; }
 @media (max-width: 560px) { .terminal-head, .terminal-input { padding: .9rem; } .terminal-output { height: 290px; padding: 1rem; } .terminal-input label { display: none; } }
+.submission-logs { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82rem; display: grid; gap: .55rem; }
+.submission-logs > div { display: flex; gap: .75rem; overflow-wrap: anywhere; }
+.submission-logs strong { color: #2d59a9; min-width: 68px; }
+.submission-logs code { font: inherit; white-space: pre-wrap; }
+.review-summary { display: grid; grid-template-columns: 70px 1fr; gap: .8rem; margin: 1.4rem 0 0; font-size: .82rem; }
+.review-summary dt { color: #76849a; }
+.review-summary dd { margin: 0; font-weight: 650; overflow-wrap: anywhere; }
