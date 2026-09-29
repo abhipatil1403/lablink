@@ -1,0 +1,17 @@
+node_modules/
+dist/
+target/
+.idea/
+.vscode/
+*.log
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*service-account*.json
+*firebase-admin*.json
+*.pem
+*.p12
+
