@@ -144,3 +144,23 @@ tbody tr:last-child td { border: 0; }
 .review-summary { display: grid; grid-template-columns: 70px 1fr; gap: .8rem; margin: 1.4rem 0 0; font-size: .82rem; }
 .review-summary dt { color: #76849a; }
 .review-summary dd { margin: 0; font-weight: 650; overflow-wrap: anywhere; }
+.faculty-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.heading-row { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
+.button-link { text-decoration: none; padding: 0 1rem; margin: 0; white-space: nowrap; }
+.table-actions { display: flex; gap: .8rem; align-items: center; white-space: nowrap; }
+.table-actions button { border: 0; background: none; color: #244daa; font-weight: 650; padding: 0; }
+.table-actions button:disabled { color: #a1a9b7; cursor: not-allowed; }
+.experiment-form { max-width: 750px; display: grid; gap: 1.1rem; }
+.experiment-form label { display: grid; gap: .45rem; color: #34445f; font-size: .85rem; font-weight: 700; }
+.experiment-form label small { display: inline; color: #8693a7; font-weight: 500; }
+.experiment-form input, .experiment-form textarea, .experiment-form select, .filter-bar input, .filter-bar select { width: 100%; padding: .75rem .8rem; border: 1px solid #cbd4e0; border-radius: 8px; background: #fff; color: #172238; font: inherit; }
+.experiment-form textarea { resize: vertical; }
+.experiment-form .primary-button { justify-self: start; padding: 0 1.1rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.filter-bar { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+.filter-bar select { max-width: 230px; }
+.filter-bar input { max-width: 170px; }
+.success-note { color: #167a48 !important; background: #e5f6ed; padding: .7rem; border-radius: 8px; }
+@media (max-width: 1200px) { .faculty-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .faculty-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .heading-row { align-items: start; flex-direction: column; } }
+@media (max-width: 560px) { .faculty-metrics, .form-row { grid-template-columns: 1fr; } .filter-bar > * { max-width: none !important; flex: 1 1 100%; } }

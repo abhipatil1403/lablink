@@ -47,6 +47,7 @@ public class SessionController {
         session.put("id", id);
         session.put("studentId", Access.uid(request));
         session.put("experimentId", input.experimentId());
+        session.put("experimentType", experiment.get("experimentType"));
         session.put("serverId", "tcp-local");
         session.put("serverAddress", server.get("address") + ":" + server.get("port"));
         session.put("status", "STARTING");

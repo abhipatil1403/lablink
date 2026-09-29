@@ -3,8 +3,17 @@ import { AuthProvider } from './AuthProvider'
 import { useAuth } from './authContext'
 import { LoginPage, RegisterPage } from './pages/AuthPages'
 import { logout } from './services/authService'
-import { StudentLayout } from './StudentLayout'
+import { AppLayout, StudentLayout } from './StudentLayout'
 import { ExperimentCatalog, ExperimentDetails, SessionDetails, StudentDashboard, StudentProfile, SubmissionDetails, SubmissionHistory } from './pages/StudentPages'
+import { FacultyDashboard, FacultyExperimentForm, FacultyExperiments, FacultyReview, FacultySessions, FacultySubmissions } from './pages/FacultyPages'
+import { BookOpen, ClipboardCheck, LayoutDashboard, Users } from 'lucide-react'
+
+const facultyLinks = [
+  { to: '/faculty', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/faculty/experiments', label: 'Experiments', icon: BookOpen },
+  { to: '/faculty/sessions', label: 'Student sessions', icon: Users },
+  { to: '/faculty/submissions', label: 'Submissions', icon: ClipboardCheck },
+]
 
 function Protected({ role, children }) {
   const { user, profile, loading, error } = useAuth()
@@ -40,7 +49,16 @@ export function App() {
       <Route path="/experiment/:id" element={<ExperimentDetails />} />
       <Route path="/session/:id" element={<SessionDetails />} />
     </Route>
-    {['FACULTY', 'ADMIN'].map(role => <Route key={role} path={`/${role.toLowerCase()}`} element={<Protected role={role}><RoleHome role={role} /></Protected>} />)}
+    <Route element={<Protected role="FACULTY"><AppLayout role="FACULTY" links={facultyLinks} /></Protected>}>
+      <Route path="/faculty" element={<FacultyDashboard />} />
+      <Route path="/faculty/experiments" element={<FacultyExperiments />} />
+      <Route path="/faculty/experiments/new" element={<FacultyExperimentForm />} />
+      <Route path="/faculty/experiments/:id/edit" element={<FacultyExperimentForm />} />
+      <Route path="/faculty/sessions" element={<FacultySessions />} />
+      <Route path="/faculty/submissions" element={<FacultySubmissions />} />
+      <Route path="/faculty/submissions/:id" element={<FacultyReview />} />
+    </Route>
+    <Route path="/admin" element={<Protected role="ADMIN"><RoleHome role="ADMIN" /></Protected>} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AuthProvider></BrowserRouter>
 }

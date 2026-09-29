@@ -43,7 +43,7 @@ public class InternalSessionController {
         Map<String, Object> session = sessions.requireSession(id);
         Access.requireOwner(request, (String) session.get("studentId"));
         if (!List.of("STARTING", "RUNNING", "STOPPED", "FAILED").contains(session.get("status"))
-                || !"tcp-client-server".equals(session.get("experimentId"))) {
+                || !"tcp-client-server".equals(session.getOrDefault("experimentType", session.get("experimentId")))) {
             throw new ApiException(HttpStatus.CONFLICT, "Session is not available for TCP connection");
         }
         return Map.of("id", id, "experimentId", session.get("experimentId"), "status", session.get("status"));
