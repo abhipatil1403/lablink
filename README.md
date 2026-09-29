@@ -8,6 +8,8 @@ LabLink is a connected virtual laboratory for a Computer Network Technology cour
 2. Start the TCP server, backend, WebSocket gateway, then the frontend using the commands in that guide.
 3. Open `http://localhost:5173`, register a student account, and start **TCP Client Server Communication**.
 
+For production deployment, use the repository's Render Blueprint and the Vercel configuration described in [Setup](docs/setup.md#render-and-vercel-deployment).
+
 The browser calls the API at `http://localhost:8080`. The backend explicitly accepts the Vite development origin `http://localhost:5173`; after pulling an update, restart the Spring Boot process to load the CORS configuration.
 
 ## Documentation

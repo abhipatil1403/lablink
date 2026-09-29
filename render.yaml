@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: lablink-api
+    runtime: java
+    region: singapore
+    rootDir: lablink-backend
+    buildCommand: ./mvnw -q package
+    startCommand: java -jar target/lablink-backend-0.1.0.jar
+    healthCheckPath: /api/health
+    envVars:
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: GATEWAY_SHARED_SECRET
+        generateValue: true
+      - key: TCP_HOST
+        value: lablink-tcp-server
+      - key: TCP_PORT
+        value: "9001"
+      - key: NETWORK_SERVICE_URL
+        value: https://lablink-network-service.onrender.com
+
+  - type: pserv
+    name: lablink-tcp-server
+    runtime: node
+    region: singapore
+    rootDir: lablink-tcp-server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: TCP_HOST
+        value: 0.0.0.0
+      - key: TCP_PORT
+        value: "9001"
+
+  - type: web
+    name: lablink-network-service
+    runtime: node
+    region: singapore
+    rootDir: lablink-network-service
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: API_BASE_URL
+        value: https://lablink-api.onrender.com
+      - key: GATEWAY_SHARED_SECRET
+        fromService:
+          name: lablink-api
+          type: web
+          envVarKey: GATEWAY_SHARED_SECRET
+      - key: TCP_HOST
+        fromService:
+          name: lablink-tcp-server
+          type: pserv
+          property: host
+      - key: TCP_PORT
+        value: "9001"
+      - key: FRONTEND_ORIGIN
+        sync: false

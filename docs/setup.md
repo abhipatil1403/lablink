@@ -47,3 +47,12 @@ cd lablink-frontend; npm install; npm run dev
 ```
 
 Open `http://localhost:5173`. If the browser reports a CORS preflight error after updating the code, stop and restart the Spring Boot command so it loads the current CORS filter.
+
+## Render and Vercel deployment
+
+1. In Render, create a Blueprint from this repository's `render.yaml`. It creates the API and WebSocket gateway as web services plus a private TCP service.
+2. When Render prompts for variables, provide `FIREBASE_PROJECT_ID`, the complete service-account JSON in `FIREBASE_SERVICE_ACCOUNT_JSON`, and the same final Vercel origin for `FRONTEND_ORIGIN` on both public Render services. Do not add the JSON to Git.
+3. In Vercel, import this repository and set the project **Root Directory** to `lablink-frontend`. Vercel uses `vercel.json` to route direct browser visits back to the React app.
+4. Set these Vercel production environment variables from your Firebase Web App configuration: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, and `VITE_FIREBASE_APP_ID`.
+5. Set `VITE_API_BASE_URL=https://lablink-api.onrender.com` and `VITE_NETWORK_WS_URL=wss://lablink-network-service.onrender.com/ws`, using the actual Render service URLs if Render assigns different names.
+6. Redeploy the Vercel project after changing its build-time variables. Copy its final `https://...vercel.app` URL into both Render `FRONTEND_ORIGIN` variables, then redeploy the API and gateway.
