@@ -11,3 +11,5 @@ LabLink is a connected virtual laboratory for a Computer Network Technology cour
 5. Add faculty and admin screens and APIs, security checks, automated tests, and setup/demo documentation.
 
 Each implementation phase is tested, reviewed, committed, and pushed before the next begins. See [architecture](docs/architecture.md) for the service boundaries.
+
+Firebase web values belong in `lablink-frontend/.env`, copied from its example. They identify the Firebase project and are used by the browser SDK. Backend privileges come from Application Default Credentials: set `GOOGLE_APPLICATION_CREDENTIALS` to a service account file outside the repository and `FIREBASE_PROJECT_ID` to the same project. The credentials file and actual `.env` files are ignored by Git.
