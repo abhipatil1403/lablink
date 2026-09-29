@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ClipboardList, Clock3, Server, Wifi } from 'lucide-react'
 import { useAuth } from '../authContext'
 import { getExperiment, listExperiments } from '../services/experimentService'
-import { getSession, listSubmissions } from '../services/sessionService'
+import { createSession, getSession, listSubmissions } from '../services/sessionService'
+import { TcpTerminal } from '../TcpTerminal'
 
 function useData(load, key) {
   const [data, setData] = useState(null)
@@ -57,9 +58,19 @@ function ExperimentCard({ experiment }) {
 
 export function ExperimentDetails() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { data: experiment, loading, error } = useData(getExperiment, id)
+  const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState('')
+  const available = experiment?.status === 'ACTIVE' && experiment?.experimentType === 'tcp-client-server'
+  async function start() {
+    setStarting(true)
+    setStartError('')
+    try { const session = await createSession(id); navigate(`/session/${session.id}`) }
+    catch (failure) { setStartError(failure.message); setStarting(false) }
+  }
   return <><Link className="back-link" to="/student/experiments"><ArrowLeft size={16} /> All experiments</Link><State loading={loading} error={error}>
-    {experiment && <><div className="page-heading detail-heading"><div className="chip-row"><span className="chip">{experiment.protocol}</span><span className="chip">{experiment.difficulty}</span><span className={`badge ${experiment.status === 'ACTIVE' ? 'badge-success' : 'badge-muted'}`}>{experiment.status === 'ACTIVE' ? 'Available' : 'Coming soon'}</span></div><h1>{experiment.title}</h1><p>{experiment.description}</p></div><div className="detail-grid"><div className="detail-main"><section className="content-card"><h2>Objective</h2><p>{experiment.objective}</p></section><section className="content-card"><h2>Instructions</h2><ol>{experiment.instructions?.map(step => <li key={step}>{step}</li>)}</ol></section><section className="content-card"><h2>Expected output</h2><p>{experiment.expectedOutput}</p></section></div><aside className="detail-side"><section className="content-card"><h2>Networking concepts</h2><div className="chip-row">{experiment.networkingConcepts?.map(concept => <span className="chip" key={concept}>{concept}</span>)}</div></section><section className="content-card"><h2>Server requirement</h2><p className="server-line"><Server size={18} />{experiment.serverRequirement}</p></section><button className="primary-button" disabled>Start experiment <ArrowRight size={17} /></button><p className="subtle-note">Live session access will be enabled with the TCP connection service.</p></aside></div></>}
+    {experiment && <><div className="page-heading detail-heading"><div className="chip-row"><span className="chip">{experiment.protocol}</span><span className="chip">{experiment.difficulty}</span><span className={`badge ${experiment.status === 'ACTIVE' ? 'badge-success' : 'badge-muted'}`}>{experiment.status === 'ACTIVE' ? 'Available' : 'Coming soon'}</span></div><h1>{experiment.title}</h1><p>{experiment.description}</p></div><div className="detail-grid"><div className="detail-main"><section className="content-card"><h2>Objective</h2><p>{experiment.objective}</p></section><section className="content-card"><h2>Instructions</h2><ol>{experiment.instructions?.map(step => <li key={step}>{step}</li>)}</ol></section><section className="content-card"><h2>Expected output</h2><p>{experiment.expectedOutput}</p></section></div><aside className="detail-side"><section className="content-card"><h2>Networking concepts</h2><div className="chip-row">{experiment.networkingConcepts?.map(concept => <span className="chip" key={concept}>{concept}</span>)}</div></section><section className="content-card"><h2>Server requirement</h2><p className="server-line"><Server size={18} />{experiment.serverRequirement}</p></section><button className="primary-button" disabled={!available || starting} onClick={start}>{starting ? 'Starting…' : 'Start experiment'} <ArrowRight size={17} /></button>{startError && <p className="form-error" role="alert">{startError}</p>}{!available && <p className="subtle-note">This experiment is not available yet.</p>}</aside></div></>}
   </State></>
 }
 
@@ -78,5 +89,7 @@ export function StudentProfile() {
 export function SessionDetails() {
   const { id } = useParams()
   const { data: session, loading, error } = useData(getSession, id)
-  return <State loading={loading} error={error}>{session && <section className="content-card"><p className="eyebrow">SESSION</p><h1>Session {session.id.slice(0, 8)}</h1><p>Status: {session.status}</p><p>Server: {session.serverAddress}</p></section>}</State>
+  return <State loading={loading} error={error}>{session && (session.status === 'COMPLETED'
+    ? <section className="content-card"><h1>Session submitted</h1><p>Your work is available in <Link to="/student/submissions">submission history</Link>.</p></section>
+    : <TcpTerminal key={session.id} session={session} />)}</State>
 }
