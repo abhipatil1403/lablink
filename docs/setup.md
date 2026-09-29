@@ -18,7 +18,7 @@ To provision the first faculty or admin account, create the account through Fire
 
 ## Environment files
 
-Copy each example file to `.env` in the same service directory. Keep real values private.
+Copy each example file to `.env` in the same service directory. The backend reads its `.env` on startup. Keep real values private.
 
 ```powershell
 Copy-Item lablink-frontend/.env.example lablink-frontend/.env
@@ -34,6 +34,8 @@ $env:GATEWAY_SHARED_SECRET = "a-long-random-secret-shared-with-the-gateway"
 ```
 
 Put that same `GATEWAY_SHARED_SECRET` in `lablink-network-service/.env`. The backend accepts Vite from `FRONTEND_ORIGIN=http://localhost:5173`; leave that value unless the frontend uses a different origin.
+
+For local Firebase credentials, set `GOOGLE_APPLICATION_CREDENTIALS` in `lablink-backend/.env` to a JSON file outside the repository, using forward slashes on Windows such as `C:/LabLinkSecrets/firebase-service-account.json`. Leave `FIREBASE_SERVICE_ACCOUNT_JSON` empty locally; it is only for a Render secret environment value.
 
 ## Start the services
 
