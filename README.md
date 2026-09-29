@@ -11,4 +11,3 @@ LabLink is a connected virtual laboratory for a Computer Network Technology cour
 5. Add faculty and admin screens and APIs, security checks, automated tests, and setup/demo documentation.
 
 Each implementation phase is tested, reviewed, committed, and pushed before the next begins. See [architecture](docs/architecture.md) for the service boundaries.
-
