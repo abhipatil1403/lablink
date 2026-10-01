@@ -1,117 +1,50 @@
 package edu.lablink;
 
-import jakarta.servlet.http.HttpServletRequest;
+import edu.lablink.Model.*;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.*;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
 
-@RestController
-@RequestMapping("/api/faculty")
+@RestController @RequestMapping("/api/faculty") @Transactional
 public class FacultyController {
-    private final FirestoreRepository repository;
-
-    public FacultyController(FirestoreRepository repository) {
-        this.repository = repository;
+    private final LabStore store;
+    private final UserJpaRepository users;
+    public FacultyController(LabStore store, UserJpaRepository users) { this.store = store; this.users = users; }
+    @GetMapping("/dashboard") public Map<String, Object> dashboard() {
+        var assignments = store.all(Assignment.class, "Assignment");
+        var attempts = store.attempts(); var submissions = store.submissions();
+        return Map.of("totalExperiments", assignments.size(), "activeExperiments", assignments.stream().filter(a -> "ACTIVE".equals(a.status)).count(),
+            "activeSessions", attempts.stream().filter(a -> "RUNNING".equals(a.status)).count(),
+            "totalSubmissions", submissions.size(), "pendingReviews", submissions.stream().filter(s -> "SUBMITTED".equals(s.status)).count(),
+            "recentSessions", attempts.stream().limit(10).map(store::attempt).toList(),
+            "pendingSubmissions", submissions.stream().filter(s -> "SUBMITTED".equals(s.status)).limit(10).map(store::submission).toList());
     }
-
-    public record ReviewInput(@NotNull @Min(0) @Max(100) Integer grade,
-            @NotBlank @Size(max = 2000) String feedback) {}
-
-    @GetMapping("/dashboard")
-    public Map<String, Object> dashboard(HttpServletRequest request) {
-        Access.requireRole(request, "FACULTY");
-        List<Map<String, Object>> experiments = repository.all("experiments");
-        List<Map<String, Object>> sessions = sessions(request, null, null, null);
-        List<Map<String, Object>> submissions = submissions(request);
-        return Map.of(
-                "totalExperiments", experiments.size(),
-                "activeExperiments", experiments.stream().filter(item -> "ACTIVE".equals(item.get("status"))).count(),
-                "activeSessions", sessions.stream().filter(item -> List.of("STARTING", "RUNNING").contains(item.get("status"))).count(),
-                "pendingReviews", submissions.stream().filter(item -> "SUBMITTED".equals(item.get("status"))).count(),
-                "totalSubmissions", submissions.size(),
-                "recentSessions", sessions.stream().limit(5).toList(),
-                "pendingSubmissions", submissions.stream().filter(item -> "SUBMITTED".equals(item.get("status"))).limit(5).toList());
+    @GetMapping("/students") public List<UserEntity> students() {
+        return users.findAll().stream().filter(u -> "STUDENT".equals(u.getRole())).toList();
     }
-
-    @GetMapping("/sessions")
-    public List<Map<String, Object>> sessions(HttpServletRequest request,
-            @RequestParam(required = false) String experimentId,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String date) {
-        Access.requireRole(request, "FACULTY");
-        var users = index(repository.all("users"));
-        var experiments = index(repository.all("experiments"));
-        return repository.all("sessions").stream()
-                .filter(item -> experimentId == null || experimentId.equals(item.get("experimentId")))
-                .filter(item -> status == null || status.equals(item.get("status")))
-                .filter(item -> date == null || String.valueOf(item.get("startTime")).startsWith(date))
-                .map(item -> enrich(item, users, experiments))
-                .sorted(Comparator.comparing(item -> String.valueOf(item.get("startTime")), Comparator.reverseOrder()))
-                .toList();
+    @GetMapping("/sessions") public List<Map<String, Object>> sessions(
+            @RequestParam(required = false) UUID assignmentId, @RequestParam(required = false) UUID experimentId,
+            @RequestParam(required = false) String status, @RequestParam(required = false) String date) {
+        UUID assignment = assignmentId == null ? experimentId : assignmentId;
+        return store.attempts().stream()
+            .filter(a -> assignment == null || a.assignment.id.equals(assignment))
+            .filter(a -> status == null || status.isBlank() || a.status.equals(status))
+            .filter(a -> date == null || date.isBlank() || a.startedAt.toString().startsWith(date))
+            .map(store::attempt).toList();
     }
-
-    @GetMapping("/submissions")
-    public List<Map<String, Object>> submissions(HttpServletRequest request) {
-        Access.requireRole(request, "FACULTY");
-        var users = index(repository.all("users"));
-        var experiments = index(repository.all("experiments"));
-        return repository.all("submissions").stream()
-                .map(item -> enrich(item, users, experiments))
-                .sorted(Comparator.comparing(item -> String.valueOf(item.get("submittedAt")), Comparator.reverseOrder()))
-                .toList();
-    }
-
-    @GetMapping("/submissions/{id}")
-    public Map<String, Object> submission(@PathVariable String id, HttpServletRequest request) {
-        Access.requireRole(request, "FACULTY");
-        Map<String, Object> submission = repository.find("submissions", id);
-        if (submission == null) throw new ApiException(HttpStatus.NOT_FOUND, "Submission not found");
-        return enrich(submission, index(repository.all("users")), index(repository.all("experiments")));
-    }
-
+    @GetMapping("/sessions/{id}") public Map<String, Object> session(@PathVariable UUID id) { return store.attempt(store.get(Attempt.class, id)); }
+    @GetMapping("/submissions") public List<Map<String, Object>> submissions() { return store.submissions().stream().map(store::submission).toList(); }
+    @GetMapping("/submissions/{id}") public Map<String, Object> submission(@PathVariable UUID id) { return store.submission(store.get(Submission.class, id)); }
+    record ReviewBody(@NotNull @DecimalMin("0") @DecimalMax("100") BigDecimal grade,
+                      @NotBlank @Size(max = 10000) String feedback, @Pattern(regexp = "REVIEWED|RETURNED|REJECTED") String status) {}
     @PatchMapping("/submissions/{id}/review")
-    public Map<String, Object> review(@PathVariable String id, @Valid @RequestBody ReviewInput input,
-            HttpServletRequest request) {
-        Access.requireRole(request, "FACULTY");
-        Map<String, Object> submission = submission(id, request);
-        Map<String, Object> fields = Map.of("grade", input.grade(), "feedback", input.feedback().trim(),
-                "status", "REVIEWED", "reviewedAt", Instant.now().toString());
-        repository.update("submissions", id, fields);
-        Map<String, Object> reviewed = new HashMap<>(submission);
-        reviewed.putAll(fields);
-        return reviewed;
-    }
-
-    private Map<String, Map<String, Object>> index(List<Map<String, Object>> items) {
-        return items.stream().collect(Collectors.toMap(item -> String.valueOf(item.get("id") == null ? item.get("uid") : item.get("id")),
-                Function.identity(), (a, b) -> a));
-    }
-
-    private Map<String, Object> enrich(Map<String, Object> item, Map<String, Map<String, Object>> users,
-            Map<String, Map<String, Object>> experiments) {
-        Map<String, Object> result = new HashMap<>(item);
-        Map<String, Object> user = users.get(item.get("studentId"));
-        Map<String, Object> experiment = experiments.get(item.get("experimentId"));
-        result.put("studentName", user == null ? "Unknown student" : user.get("name"));
-        result.put("experimentTitle", experiment == null ? "Unknown experiment" : experiment.get("title"));
-        return result;
+    public Map<String, Object> review(@PathVariable UUID id, @Valid @RequestBody ReviewBody body) {
+        store.review(id, body.grade(), body.feedback(), body.status() == null ? "REVIEWED" : body.status());
+        return submission(id);
     }
 }

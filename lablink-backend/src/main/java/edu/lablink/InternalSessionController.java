@@ -1,109 +1,59 @@
 package edu.lablink;
 
-import com.google.cloud.firestore.FieldValue;
-import jakarta.servlet.http.HttpServletRequest;
+import edu.lablink.Model.*;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Instant;
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.time.*;
+import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
 
-@RestController
-@RequestMapping("/api/internal/sessions")
+@RestController @RequestMapping("/api/internal/sessions") @Transactional
 public class InternalSessionController {
-    private final SessionController sessions;
-    private final FirestoreRepository repository;
-    private final String gatewayKey;
-
-    public InternalSessionController(SessionController sessions, FirestoreRepository repository,
-            @Value("${lablink.gateway-key}") String gatewayKey) {
-        this.sessions = sessions;
-        this.repository = repository;
-        this.gatewayKey = gatewayKey;
+    private final LabStore store;
+    private final byte[] key;
+    public InternalSessionController(LabStore store, @Value("${lablink.gateway-key}") String key) {
+        if (key.length() < 32) throw new IllegalStateException("GATEWAY_SHARED_SECRET must have at least 32 characters");
+        this.store = store; this.key = key.getBytes(StandardCharsets.UTF_8);
     }
-
-    record StateRequest(@NotBlank String status) {}
-    record LogRequest(@NotBlank String direction, @NotBlank @Size(max = 1200) String text) {}
-
+    private Attempt validate(UUID id, String supplied) {
+        if (supplied == null || !MessageDigest.isEqual(key, supplied.getBytes(StandardCharsets.UTF_8)))
+            throw new ApiException(HttpStatus.FORBIDDEN, "Gateway credentials required");
+        var attempt = store.get(Attempt.class, id); Access.owner(attempt.student);
+        if (attempt.startedAt.isBefore(Instant.now().minus(Duration.ofHours(2))) || "SUBMITTED".equals(attempt.status))
+            throw new ApiException(HttpStatus.CONFLICT, "This attempt has expired or was submitted");
+        return attempt;
+    }
     @GetMapping("/{id}/validate")
-    public Map<String, Object> validate(@PathVariable String id,
-            @RequestHeader(value = "X-LabLink-Gateway-Key", required = false) String key, HttpServletRequest request) {
-        authenticate(key);
-        Access.requireRole(request, "STUDENT");
-        Map<String, Object> session = sessions.requireSession(id);
-        Access.requireOwner(request, (String) session.get("studentId"));
-        try {
-            if (Instant.parse((String) session.get("startTime")).isBefore(Instant.now().minus(Duration.ofHours(2)))) {
-                throw new ApiException(HttpStatus.CONFLICT, "Session has expired");
-            }
-        } catch (NullPointerException | java.time.format.DateTimeParseException error) {
-            throw new ApiException(HttpStatus.CONFLICT, "Session timestamp is invalid");
-        }
-        if (!List.of("STARTING", "RUNNING", "STOPPED", "FAILED").contains(session.get("status"))
-                || !"tcp-chat".equals(session.getOrDefault("assignmentType", session.get("experimentType")))) {
-            throw new ApiException(HttpStatus.CONFLICT, "Session is not available for TCP connection");
-        }
-        return Map.of("id", id, "experimentId", session.get("experimentId"), "status", session.get("status"));
+    public Map<String, Object> configuration(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key) {
+        var attempt = validate(id, key);
+        var dto = store.attempt(attempt);
+        dto.put("evaluationTests", store.tests(attempt.assignment).stream().filter(t -> t.enabled)
+            .map(t -> Map.of("id", t.id, "type", t.type, "weight", t.weight, "configuration", t.configuration)).toList());
+        return dto;
     }
-
-    @PostMapping("/{id}/state")
-    public Map<String, Object> state(@PathVariable String id, @Valid @RequestBody StateRequest input,
-            @RequestHeader(value = "X-LabLink-Gateway-Key", required = false) String key, HttpServletRequest request) {
-        Map<String, Object> session = validate(id, key, request);
-        String next = input.status();
-        if (!List.of("RUNNING", "STOPPED", "FAILED").contains(next)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid session status");
-        }
-        if (next.equals("STOPPED") && session.get("status").equals("STOPPED")) return session;
-        if (next.equals("FAILED") && session.get("status").equals("STOPPED")) {
-            throw new ApiException(HttpStatus.CONFLICT, "Stopped session cannot fail");
-        }
-        Map<String, Object> fields = new HashMap<>();
-        fields.put("status", next);
-        fields.put("endTime", next.equals("RUNNING") ? null : Instant.now().toString());
-        repository.update("sessions", id, fields);
-        return Map.of("id", id, "status", next);
+    record Begin(@NotBlank @Size(max = 32768) String solution) {}
+    @PostMapping("/{id}/begin")
+    public Map<String, Object> begin(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key,
+                                   @Valid @RequestBody Begin body) {
+        validate(id, key); store.begin(id, body.solution()); return Map.of("status", "RUNNING");
     }
-
-    @PostMapping("/{id}/log")
-    public Map<String, Object> log(@PathVariable String id, @Valid @RequestBody LogRequest input,
-            @RequestHeader(value = "X-LabLink-Gateway-Key", required = false) String key, HttpServletRequest request) {
-        validate(id, key, request);
-        if (!List.of("STUDENT", "SERVER").contains(input.direction())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid transcript direction");
-        }
-        Map<String, Object> session = sessions.requireSession(id);
-        if (session.get("logs") instanceof List<?> logs && logs.size() >= 200) {
-            throw new ApiException(HttpStatus.CONFLICT, "Session transcript limit reached");
-        }
-        Map<String, Object> line = Map.of("direction", input.direction(), "text", input.text(),
-                "at", Instant.now().toString(), "id", UUID.randomUUID().toString());
-        repository.update("sessions", id, Map.of("logs", FieldValue.arrayUnion(line)));
-        return line;
+    record Complete(@Pattern(regexp = "run|test") String mode, @NotNull @Size(max = 65536) String output,
+                    @NotNull @Size(max = 131072) String networkLog, @NotNull @Size(max = 50) List<LabStore.Report> results) {}
+    @PostMapping("/{id}/complete")
+    public Map<String, Object> complete(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key,
+                                       @Valid @RequestBody Complete body) {
+        validate(id, key); store.complete(id, body.mode(), body.output(), body.networkLog(), body.results());
+        return store.attempt(store.get(Attempt.class, id));
     }
-
-    private void authenticate(String supplied) {
-        if (gatewayKey.isBlank()) {
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Network gateway is not configured");
-        }
-        if (supplied == null || !MessageDigest.isEqual(gatewayKey.getBytes(StandardCharsets.UTF_8),
-                supplied.getBytes(StandardCharsets.UTF_8))) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Network gateway access denied");
-        }
+    record Failure(@NotBlank @Size(max = 2000) String message) {}
+    @PostMapping("/{id}/failure")
+    public Map<String, Object> failure(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key,
+                                      @Valid @RequestBody Failure body) {
+        validate(id, key); store.failure(id, body.message()); return Map.of("status", "FAILED");
     }
 }

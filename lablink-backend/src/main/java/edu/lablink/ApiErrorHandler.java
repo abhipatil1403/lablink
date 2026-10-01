@@ -1,30 +1,29 @@
 package edu.lablink;
 
 import java.util.Map;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.slf4j.*;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.*;
+import org.springframework.web.bind.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 @RestControllerAdvice
 public class ApiErrorHandler {
+    private static final Logger log = LoggerFactory.getLogger(ApiErrorHandler.class);
     @ExceptionHandler(ApiException.class)
-    ResponseEntity<Map<String, Object>> api(ApiException error) {
-        return body(error.status(), error.getMessage());
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    ResponseEntity<Map<String, Object>> validation() {
-        return body(HttpStatus.BAD_REQUEST, "Check the submitted fields");
-    }
-
+    ResponseEntity<?> api(ApiException error) { return body(error.status(), error.getMessage()); }
+    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
+                       IllegalArgumentException.class})
+    ResponseEntity<?> invalid(Exception error) { return body(HttpStatus.BAD_REQUEST, "Check the submitted fields"); }
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<?> conflict() { return body(HttpStatus.CONFLICT, "A record already exists or conflicts with related records"); }
     @ExceptionHandler(Exception.class)
-    ResponseEntity<Map<String, Object>> unexpected(Exception error) {
-        return body(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to connect to LabLink services");
+    ResponseEntity<?> unexpected(Exception error) {
+        log.error("API request failed", error);
+        return body(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to complete this request");
     }
-
-    private ResponseEntity<Map<String, Object>> body(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(Map.of("success", false, "message", message, "status", status.value()));
+    private ResponseEntity<?> body(HttpStatus status, String message) {
+        return ResponseEntity.status(status).body(Map.of("message", message, "status", status.value()));
     }
 }

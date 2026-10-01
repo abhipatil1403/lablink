@@ -1,31 +1,23 @@
 package edu.lablink;
 
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.firebase.auth.FirebaseToken;
-import jakarta.servlet.http.HttpServletRequest;
-import java.util.Arrays;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 public final class Access {
     private Access() {}
-
-    public static String uid(HttpServletRequest request) {
-        return ((FirebaseToken) request.getAttribute("firebaseToken")).getUid();
+    public static UserEntity user() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserEntity user))
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Please log in");
+        return user;
     }
-
-    public static String role(HttpServletRequest request) {
-        return ((DocumentSnapshot) request.getAttribute("profile")).getString("role");
+    public static void role(String... roles) {
+        String role = user().getRole();
+        for (String allowed : roles) if (allowed.equals(role)) return;
+        throw new ApiException(HttpStatus.FORBIDDEN, "This action is not available to your role");
     }
-
-    public static void requireRole(HttpServletRequest request, String... roles) {
-        if (Arrays.stream(roles).noneMatch(role -> role.equals(role(request)))) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission for this action");
-        }
-    }
-
-    public static void requireOwner(HttpServletRequest request, String ownerId) {
-        if (!uid(request).equals(ownerId)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission for this session");
-        }
+    public static void owner(UserEntity student) {
+        if ("STUDENT".equals(user().getRole()) && !student.getId().equals(user().getId()))
+            throw new ApiException(HttpStatus.FORBIDDEN, "You can only access your own work");
     }
 }
