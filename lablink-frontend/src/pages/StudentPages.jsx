@@ -1,103 +1,62 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ClipboardList, Clock3, Server, Wifi } from 'lucide-react'
-import { useAuth } from '../authContext'
-import { getExperiment, listExperiments } from '../services/experimentService'
-import { createSession, getSession, getSubmission, listSubmissions } from '../services/sessionService'
-import { TcpTerminal } from '../TcpTerminal'
+import {useState} from 'react'
+import {Link,useNavigate,useParams} from 'react-router-dom'
+import {ArrowLeft,ArrowRight,BookOpen,CheckCircle2,ClipboardList,Clock3,Wifi} from 'lucide-react'
+import {useAuth} from '../authContext'
+import {useRemote} from '../hooks/useRemote'
+import {getExperiment,listExperiments} from '../services/experimentService'
+import {createSession,getSession,getSubmission,listSubmissions,listAttempts} from '../services/sessionService'
+import {AssignmentWorkspace} from '../AssignmentWorkspace'
+import {DataState,Header,Status,WorkEvidence} from './Common'
 
-function useData(load, key) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    let active = true
-    load(key).then(value => { if (active) setData(value) }).catch(failure => { if (active) setError(failure.message) }).finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [load, key])
-  return { data, loading, error }
+const loadDashboard=()=>Promise.all([listExperiments(),listSubmissions()])
+function AssignmentCard({assignment}) {
+  return <article className="experiment-card"><div className="card-top"><span className="protocol-icon"><Wifi size={21}/></span><Status value={assignment.status}/></div><div className="chip-row"><span className="chip">{assignment.protocol}</span><span className="chip">{assignment.difficulty}</span></div><h3>{assignment.title}</h3><p>{assignment.description}</p><div className="chip-row">{assignment.networkingConcepts.map(concept=><span className="chip" key={concept}>{concept}</span>)}</div><p className="subtle-note">{assignment.attempts??0} attempts · {assignment.submissionStatus?.replaceAll('_',' ')}{assignment.deadline?' · Due '+new Date(assignment.deadline).toLocaleString():''}</p><Link className="card-link" to={'/assignment/'+assignment.id}>View assignment <ArrowRight size={16}/></Link></article>
 }
-
-function State({ loading, error, empty, children }) {
-  if (loading) return <div className="state-card" role="status">Loading LabLink data…</div>
-  if (error) return <div className="state-card state-error" role="alert">{error}</div>
-  if (empty) return <div className="state-card">No records available yet.</div>
-  return children
-}
-
-const loadDashboard = () => Promise.all([listExperiments(), listSubmissions()])
-const loadExperiments = () => listExperiments()
-const loadHistory = () => Promise.all([listSubmissions(), listExperiments()])
-
 export function StudentDashboard() {
-  const { profile } = useAuth()
-  const { data, loading, error } = useData(loadDashboard)
-  const [experiments, submissions] = data || [[], []]
-  const available = experiments.filter(item => item.status === 'ACTIVE')
-  const metrics = [
-    { label: 'Available assignments', value: available.length, icon: BookOpen },
-    { label: 'Completed assignments', value: new Set(submissions.map(item => item.assignmentId || item.experimentId)).size, icon: CheckCircle2 },
-    { label: 'Pending reviews', value: submissions.filter(item => item.status === 'SUBMITTED').length, icon: Clock3 },
-    { label: 'Total submissions', value: submissions.length, icon: ClipboardList },
+  const {profile}=useAuth()
+  const {data,loading,error}=useRemote(loadDashboard)
+  const [assignments,submissions]=data||[[],[]]
+  const metrics=[
+    ['Available assignments',assignments.filter(a=>a.status==='ACTIVE').length,BookOpen],
+    ['Submitted assignments',new Set(submissions.map(s=>s.assignmentId)).size,CheckCircle2],
+    ['Pending reviews',submissions.filter(s=>s.status==='SUBMITTED').length,Clock3],
+    ['Total submissions',submissions.length,ClipboardList]
   ]
-  return <><div className="page-heading"><p className="eyebrow">STUDENT DASHBOARD</p><h1>Welcome, {profile.name?.split(' ')[0]}</h1><p>Choose an assignment and solve it against a real network environment.</p></div><State loading={loading} error={error}>
-    <section className="metric-grid" aria-label="Student statistics">{metrics.map(({ label, value, icon: Icon }) => <article className="metric-card" key={label}><span className="metric-icon"><Icon size={22} /></span><strong>{value}</strong><span>{label}</span></article>)}</section>
-    <div className="section-heading"><div><p className="eyebrow">LABORATORY</p><h2>Available assignments</h2></div><Link to="/student/experiments" className="text-link">View all <ArrowRight size={16} /></Link></div>
-    {available.length ? <div className="experiment-grid">{available.map(item => <ExperimentCard key={item.id} experiment={item} />)}</div> : <div className="state-card">No active assignments are available.</div>}
-  </State></>
+  return <><Header eyebrow="STUDENT DASHBOARD" title={'Welcome, '+profile.name.split(' ')[0]} description="Solve seven networking assignments using actual network services."/><DataState loading={loading} error={error}><div className="metric-grid">{metrics.map(([label,value,Icon])=><article key={label} className="metric-card"><span className="metric-icon"><Icon size={22}/></span><strong>{value}</strong><span>{label}</span></article>)}</div><div className="section-heading"><h2>Assignments</h2><Link className="text-link" to="/student/assignments">View all <ArrowRight size={16}/></Link></div><div className="experiment-grid">{assignments.map(a=><AssignmentCard key={a.id} assignment={a}/>)}</div></DataState></>
 }
-
 export function ExperimentCatalog() {
-  const { data, loading, error } = useData(loadExperiments)
-  return <><div className="page-heading"><p className="eyebrow">ASSIGNMENTS</p><h1>Assignment catalog</h1><p>Build genuine computer networking solutions in controlled environments.</p></div><State loading={loading} error={error} empty={data?.length === 0}><div className="experiment-grid">{data?.map(item => <ExperimentCard key={item.id} experiment={item} />)}</div></State></>
+  const {data,loading,error}=useRemote(listExperiments)
+  return <><Header eyebrow="ASSIGNMENTS" title="Assignment catalog" description="TCP, UDP, HTTP, DNS and network monitoring programming challenges."/><DataState loading={loading} error={error}><div className="experiment-grid">{data?.map(a=><AssignmentCard key={a.id} assignment={a}/>)}</div></DataState></>
 }
-
-function ExperimentCard({ experiment }) {
-  return <article className="experiment-card"><div className="card-top"><span className="protocol-icon"><Wifi size={21} /></span><span className={`badge ${experiment.status === 'ACTIVE' ? 'badge-success' : 'badge-muted'}`}>{experiment.status === 'ACTIVE' ? 'Available' : 'Coming soon'}</span></div><div className="chip-row"><span className="chip">{experiment.protocol}</span><span className="chip">{experiment.difficulty}</span></div><h3>{experiment.title}</h3><p>{experiment.description}</p><Link to={`/experiment/${experiment.id}`} className="card-link">{experiment.status === 'ACTIVE' ? 'Start assignment' : 'View assignment'} <ArrowRight size={16} /></Link></article>
-}
-
 export function ExperimentDetails() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const { data: experiment, loading, error } = useData(getExperiment, id)
-  const [starting, setStarting] = useState(false)
-  const [startError, setStartError] = useState('')
-  const available = experiment?.status === 'ACTIVE' && experiment?.assignmentType === 'tcp-chat'
-  async function start() {
-    setStarting(true)
-    setStartError('')
-    try { const session = await createSession(id); navigate(`/session/${session.id}`) }
-    catch (failure) { setStartError(failure.message); setStarting(false) }
+  const {id}=useParams(),navigate=useNavigate()
+  const {data:a,loading,error}=useRemote(getExperiment,id)
+  const [busy,setBusy]=useState(false),[failure,setFailure]=useState('')
+  async function start(){
+    setBusy(true);setFailure('')
+    try{const attempt=await createSession(id);navigate('/attempt/'+attempt.id)}catch(e){setFailure(e.message)}finally{setBusy(false)}
   }
-  return <><Link className="back-link" to="/student/experiments"><ArrowLeft size={16} /> All assignments</Link><State loading={loading} error={error}>
-    {experiment && <><div className="page-heading detail-heading"><div className="chip-row"><span className="chip">{experiment.protocol}</span><span className="chip">{experiment.difficulty}</span><span className={`badge ${experiment.status === 'ACTIVE' ? 'badge-success' : 'badge-muted'}`}>{experiment.status === 'ACTIVE' ? 'Available' : 'Coming soon'}</span></div><h1>{experiment.title}</h1><p>{experiment.description}</p></div><div className="detail-grid"><div className="detail-main"><section className="content-card"><h2>Problem statement</h2><p>{experiment.description}</p></section><section className="content-card"><h2>Requirements</h2><ol>{experiment.requirements?.map(step => <li key={step}>{step}</li>)}</ol></section><section className="content-card"><h2>Constraints</h2><ul>{experiment.constraints?.map(item => <li key={item}>{item}</li>)}</ul></section><section className="content-card"><h2>Expected behavior</h2><p>{experiment.expectedBehavior}</p></section></div><aside className="detail-side"><section className="content-card"><h2>Networking concepts</h2><div className="chip-row">{experiment.networkingConcepts?.map(concept => <span className="chip" key={concept}>{concept}</span>)}</div></section><section className="content-card"><h2>Network environment</h2><p className="server-line"><Server size={18} />{experiment.serverRequirement}</p></section><button className="primary-button" disabled={!available || starting} onClick={start}>{starting ? 'Starting…' : 'Start assignment'} <ArrowRight size={17} /></button>{startError && <p className="form-error" role="alert">{startError}</p>}{!available && <p className="subtle-note">This assignment environment is being prepared.</p>}</aside></div></>}
-  </State></>
+  return <><Link className="back-link" to="/student/assignments"><ArrowLeft size={16}/> All assignments</Link><DataState loading={loading} error={error}>{a&&<><Header eyebrow={a.protocol+' · '+a.difficulty} title={a.title} description={a.description}/><div className="detail-grid"><div className="detail-main"><section className="content-card"><h2>Objective</h2><p>{a.objective}</p></section>{[['Requirements',a.requirements],['Constraints',a.constraints],['Instructions',a.instructions]].map(([label,values])=><section className="content-card" key={label}><h2>{label}</h2><ol>{values?.map(value=><li key={value}>{value}</li>)}</ol></section>)}<section className="content-card"><h2>Expected behavior</h2><p>{a.expectedBehavior}</p></section></div><aside className="detail-side"><section className="content-card"><h2>Networking concepts</h2><div className="chip-row">{a.networkingConcepts.map(c=><span key={c} className="chip">{c}</span>)}</div><p>{a.serverRequirement}</p><Status value={a.status}/><p>{a.deadline?'Due '+new Date(a.deadline).toLocaleString():'No deadline set'}</p></section><section className="content-card"><h2>Evaluation</h2><ul>{a.testCases.map(t=><li key={t.id}>{t.name} ({t.weight} weight)</li>)}</ul></section><button className="primary-button" onClick={start} disabled={busy||a.status!=='ACTIVE'}>{busy?'Starting…':'Start assignment'}<ArrowRight size={16}/></button>{failure&&<p className="form-error" role="alert">{failure}</p>}</aside></div></>}</DataState></>
 }
-
-export function SubmissionHistory() {
-  const { data, loading, error } = useData(loadHistory)
-  const [submissions, experiments] = data || [[], []]
-  const titles = Object.fromEntries(experiments.map(item => [item.id, item.title]))
-  return <><div className="page-heading"><p className="eyebrow">YOUR WORK</p><h1>Submission history</h1><p>Track reviews, grades, and feedback from faculty.</p></div><State loading={loading} error={error} empty={submissions.length === 0}><div className="table-wrap"><table><thead><tr><th>Experiment</th><th>Submitted</th><th>Status</th><th>Grade</th><th>Feedback</th></tr></thead><tbody>{submissions.map(item => <tr key={item.id}><td><Link to={`/student/submissions/${item.id}`}>{titles[item.experimentId] || item.experimentId}</Link></td><td>{new Date(item.submittedAt).toLocaleString()}</td><td><span className={`badge ${item.status === 'REVIEWED' ? 'badge-success' : 'badge-warning'}`}>{item.status}</span></td><td>{item.grade ?? '—'}</td><td>{item.feedback || '—'}</td></tr>)}</tbody></table></div></State></>
-}
-
-export function SubmissionDetails() {
-  const { id } = useParams()
-  const { data: submission, loading, error } = useData(getSubmission, id)
-  return <><Link className="back-link" to="/student/submissions"><ArrowLeft size={16} /> Submission history</Link><State loading={loading} error={error}>
-    {submission && <><div className="page-heading"><p className="eyebrow">SUBMISSION #{submission.id.slice(0, 8)}</p><h1>Experiment result</h1><p>Submitted {new Date(submission.submittedAt).toLocaleString()}</p></div><div className="detail-grid"><div className="detail-main"><section className="content-card"><h2>Your observation</h2><p>{submission.result}</p></section><section className="content-card"><h2>Session transcript</h2><div className="submission-logs">{submission.logs?.map((entry, index) => <div key={`${entry.at}-${index}`}><strong>{entry.direction === 'STUDENT' ? 'student>' : 'server>'}</strong><code>{entry.text}</code></div>)}</div></section></div><aside className="detail-side"><section className="content-card"><h2>Review</h2><p><span className={`badge ${submission.status === 'REVIEWED' ? 'badge-success' : 'badge-warning'}`}>{submission.status}</span></p><dl className="review-summary"><dt>Grade</dt><dd>{submission.grade ?? 'Pending review'}</dd><dt>Feedback</dt><dd>{submission.feedback || 'Faculty feedback will appear here.'}</dd></dl></section></aside></div></>}
-  </State></>
-}
-
-export function StudentProfile() {
-  const { profile } = useAuth()
-  return <><div className="page-heading"><p className="eyebrow">ACCOUNT</p><h1>My profile</h1><p>Your account details and laboratory access.</p></div><section className="content-card profile-card"><dl><div><dt>Name</dt><dd>{profile.name}</dd></div><div><dt>Email</dt><dd>{profile.email}</dd></div><div><dt>Role</dt><dd>{profile.role}</dd></div><div><dt>Status</dt><dd><span className="badge badge-success">{profile.status}</span></dd></div></dl></section></>
-}
-
 export function SessionDetails() {
-  const { id } = useParams()
-  const { data: session, loading, error } = useData(getSession, id)
-  return <State loading={loading} error={error}>{session && (session.status === 'COMPLETED'
-    ? <section className="content-card"><h1>Session submitted</h1><p>Your work is available in <Link to="/student/submissions">submission history</Link>.</p></section>
-    : <TcpTerminal key={session.id} session={session} />)}</State>
+  const {id}=useParams()
+  const {data,loading,error}=useRemote(getSession,id)
+  return <DataState loading={loading} error={error}>{data&&(data.status==='SUBMITTED'?<section className="content-card"><h1>Assignment submitted</h1><Link to="/student/submissions">View your submissions</Link></section>:<AssignmentWorkspace key={data.id} session={data}/>)}</DataState>
+}
+export function StudentAttempts() {
+  const {data,loading,error}=useRemote(listAttempts)
+  return <><Header title="Assignment attempts" description="Resume your work or inspect a previous attempt."/><DataState loading={loading} error={error}>{data?.length?<div className="table-wrap"><table><thead><tr><th>Assignment</th><th>Attempt</th><th>Status</th><th>Started</th><th>Score</th></tr></thead><tbody>{data.map(a=><tr key={a.id}><td><Link to={'/attempt/'+a.id}>{a.assignmentTitle}</Link></td><td>{a.attemptNumber}</td><td><Status value={a.status}/></td><td>{new Date(a.startedAt).toLocaleString()}</td><td>{a.automatedScore??'—'}</td></tr>)}</tbody></table></div>:<div className="state-card">Start an assignment to record your first attempt.</div>}</DataState></>
+}
+export function SubmissionHistory() {
+  const {data,loading,error}=useRemote(listSubmissions)
+  return <><Header title="Submission history" description="Track automated scores, faculty grades and feedback."/><DataState loading={loading} error={error}>{data?.length?<div className="table-wrap"><table><thead><tr><th>Assignment</th><th>Submitted</th><th>Status</th><th>Automated</th><th>Faculty grade</th><th>Feedback</th></tr></thead><tbody>{data.map(s=><tr key={s.id}><td><Link to={'/student/submissions/'+s.id}>{s.assignmentTitle}</Link></td><td>{new Date(s.submittedAt).toLocaleString()}</td><td><Status value={s.status}/></td><td>{s.automatedScore}</td><td>{s.facultyGrade??'—'}</td><td>{s.facultyFeedback||'—'}</td></tr>)}</tbody></table></div>:<div className="state-card">No submissions yet. Complete the automated tests before submitting.</div>}</DataState></>
+}
+export function SubmissionDetails() {
+  const {id}=useParams()
+  const {data:s,loading,error}=useRemote(getSubmission,id)
+  return <><Link className="back-link" to="/student/submissions"><ArrowLeft size={16}/> Submission history</Link><DataState loading={loading} error={error}>{s&&<><Header title={s.assignmentTitle} description={'Submitted '+new Date(s.submittedAt).toLocaleString()}/><div className="detail-grid"><div className="detail-main"><WorkEvidence work={s}/></div><aside className="detail-side"><section className="content-card"><h2>Faculty review</h2><Status value={s.status}/><p>Grade: {s.facultyGrade??'Pending'} / 100</p><p>{s.facultyFeedback||'Feedback will appear after faculty review.'}</p>{s.status==='RETURNED'&&<Link to={'/assignment/'+s.assignmentId}>Start a revised attempt</Link>}</section>{s.reviews.map((r,i)=><section className="content-card" key={i}><strong>{r.facultyName} · {r.status}</strong><p>{r.feedback}</p><small>{new Date(r.createdAt).toLocaleString()}</small></section>)}</aside></div></>}</DataState></>
+}
+export function StudentProfile() {
+  const {profile}=useAuth()
+  return <><Header title="My profile" description="Your laboratory account."/><section className="content-card profile-card"><dl>{['name','email','role','status'].map(key=><div key={key}><dt>{key}</dt><dd>{profile[key]}</dd></div>)}</dl></section></>
 }

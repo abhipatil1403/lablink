@@ -1,127 +1,106 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, BookOpen, ClipboardCheck, Clock3, Plus, Users } from 'lucide-react'
-import { useRemote } from '../hooks/useRemote'
-import { getExperiment, listExperiments } from '../services/experimentService'
-import { createExperiment, facultyDashboard, facultySessions, facultySubmission, facultySubmissions, reviewSubmission, setExperimentStatus, updateExperiment } from '../services/facultyService'
-
-function DataState({ loading, error, children }) {
-  if (loading) return <div className="state-card" role="status">Loading LabLink data…</div>
-  if (error) return <div className="state-card state-error" role="alert">{error}</div>
-  return children
-}
-
-function Header({ eyebrow, title, description, action }) {
-  return <div className="page-heading heading-row"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>{action}</div>
-}
+import {useEffect,useMemo,useState} from 'react'
+import {Link,useNavigate,useParams} from 'react-router-dom'
+import {ArrowLeft,ArrowRight,BookOpen,ClipboardCheck,Clock3,Users} from 'lucide-react'
+import {useAuth} from '../authContext'
+import {useRemote} from '../hooks/useRemote'
+import {getExperiment,listExperiments} from '../services/experimentService'
+import {assignmentTests,facultyDashboard,facultySession,facultySessions,facultyStudents,facultySubmission,facultySubmissions,reviewSubmission,saveTest,setExperimentStatus,updateExperiment} from '../services/facultyService'
+import {DataState,Header,Status,WorkEvidence} from './Common'
 
 export function FacultyDashboard() {
-  const { data, loading, error } = useRemote(facultyDashboard)
-  const metrics = data ? [
-    ['Total experiments', data.totalExperiments, BookOpen],
-    ['Active experiments', data.activeExperiments, BookOpen],
-    ['Active sessions', data.activeSessions, Users],
-    ['Pending reviews', data.pendingReviews, Clock3],
-    ['Total submissions', data.totalSubmissions, ClipboardCheck],
-  ] : []
-  return <><Header eyebrow="FACULTY DASHBOARD" title="Laboratory overview" description="Monitor student activity and review submitted work." /><DataState loading={loading} error={error}>
-    <div className="metric-grid faculty-metrics">{metrics.map(([label, value, Icon]) => <article className="metric-card" key={label}><span className="metric-icon"><Icon size={21} /></span><strong>{value}</strong><span>{label}</span></article>)}</div>
-    <div className="section-heading"><h2>Pending reviews</h2><Link className="text-link" to="/faculty/submissions">View all <ArrowRight size={16} /></Link></div>
-    {data?.pendingSubmissions?.length ? <div className="table-wrap"><table><thead><tr><th>Student</th><th>Experiment</th><th>Submitted</th><th></th></tr></thead><tbody>{data.pendingSubmissions.map(item => <tr key={item.id}><td>{item.studentName}</td><td>{item.experimentTitle}</td><td>{new Date(item.submittedAt).toLocaleString()}</td><td><Link to={`/faculty/submissions/${item.id}`}>Review</Link></td></tr>)}</tbody></table></div> : <div className="state-card">No submissions are waiting for review.</div>}
-    <div className="section-heading"><h2>Recent sessions</h2><Link className="text-link" to="/faculty/sessions">View all <ArrowRight size={16} /></Link></div>
-    {data?.recentSessions?.length ? <div className="table-wrap"><table><thead><tr><th>Student</th><th>Experiment</th><th>Status</th><th>Started</th></tr></thead><tbody>{data.recentSessions.map(item => <tr key={item.id}><td>{item.studentName}</td><td>{item.experimentTitle}</td><td><span className="badge badge-muted">{item.status}</span></td><td>{new Date(item.startTime).toLocaleString()}</td></tr>)}</tbody></table></div> : <div className="state-card">No student sessions yet.</div>}
-  </DataState></>
+  const {data,loading,error}=useRemote(facultyDashboard)
+  const metrics=data?[
+    ['Assignments',data.totalExperiments,BookOpen],['Active assignments',data.activeExperiments,BookOpen],
+    ['Active attempts',data.activeSessions,Users],['Pending reviews',data.pendingReviews,Clock3],['Submissions',data.totalSubmissions,ClipboardCheck]
+  ]:[]
+  return <><Header eyebrow="FACULTY DASHBOARD" title="Laboratory overview" description="Monitor student work and review networking solutions."/><DataState loading={loading} error={error}><div className="metric-grid faculty-metrics">{metrics.map(([label,value,Icon])=><article className="metric-card" key={label}><span className="metric-icon"><Icon size={22}/></span><strong>{value}</strong><span>{label}</span></article>)}</div><div className="section-heading"><h2>Pending reviews</h2><Link to="/faculty/submissions">All submissions <ArrowRight size={16}/></Link></div><SubmissionsTable data={data?.pendingSubmissions}/><div className="section-heading"><h2>Recent attempts</h2></div><AttemptsTable data={data?.recentSessions}/></DataState></>
 }
-
 export function FacultyExperiments() {
-  const { data, loading, error, reload } = useRemote(listExperiments)
-  const [actionError, setActionError] = useState('')
-  const [busyId, setBusyId] = useState('')
+  const {profile}=useAuth()
+  const role=profile.role.toLowerCase()
+  const {data,loading,error,reload}=useRemote(listExperiments)
+  const [failure,setFailure]=useState(''),[busy,setBusy]=useState('')
   async function toggle(item) {
-    setBusyId(item.id)
-    setActionError('')
-    try { await setExperimentStatus(item.id, item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'); reload() }
-    catch (failure) { setActionError(failure.message) }
-    finally { setBusyId('') }
+    setBusy(item.id);setFailure('')
+    try{await setExperimentStatus(item.id,item.status==='ACTIVE'?'INACTIVE':'ACTIVE',role);reload()}catch(e){setFailure(e.message)}finally{setBusy('')}
   }
-  return <><Header eyebrow="FACULTY" title="Manage experiments" description="Create labs and control which TCP experiments students can start." action={<Link className="primary-button button-link" to="/faculty/experiments/new"><Plus size={17} /> New experiment</Link>} />
-    {actionError && <p className="form-error" role="alert">{actionError}</p>}<DataState loading={loading} error={error}>{data?.length ? <div className="table-wrap"><table><thead><tr><th>Title</th><th>Protocol</th><th>Difficulty</th><th>Status</th><th>Actions</th></tr></thead><tbody>{data.map(item => <tr key={item.id}><td><strong>{item.title}</strong></td><td>{item.protocol}</td><td>{item.difficulty}</td><td><span className={`badge ${item.status === 'ACTIVE' ? 'badge-success' : 'badge-muted'}`}>{item.status}</span></td><td className="table-actions"><Link to={`/faculty/experiments/${item.id}/edit`}>Edit</Link><button disabled={busyId === item.id || (item.status !== 'ACTIVE' && item.experimentType !== 'tcp-client-server')} onClick={() => toggle(item)}>{item.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button></td></tr>)}</tbody></table></div> : <div className="state-card">No experiments found.</div>}</DataState>
-  </>
+  return <><Header eyebrow={profile.role} title="Manage assignments" description="Manage the seven course assignments, deadlines and automated test cases."/>{failure&&<p className="form-error" role="alert">{failure}</p>}<DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Assignment</th><th>Protocol</th><th>Difficulty</th><th>Deadline</th><th>Status</th><th>Actions</th></tr></thead><tbody>{data?.map(a=><tr key={a.id}><td>{a.title}</td><td>{a.protocol}</td><td>{a.difficulty}</td><td>{a.deadline?new Date(a.deadline).toLocaleString():'None'}</td><td><Status value={a.status}/></td><td className="table-actions"><Link to={'/'+role+'/assignments/'+a.id+'/edit'}>Edit / tests</Link><button disabled={busy===a.id} onClick={()=>toggle(a)}>{a.status==='ACTIVE'?'Deactivate':'Activate'}</button></td></tr>)}</tbody></table></div></DataState></>
 }
-
-const emptyExperiment = { title: '', description: '', objective: '', instructions: '', protocol: 'TCP', difficulty: 'EASY', expectedOutput: '', serverRequirement: '', networkingConcepts: '' }
-const loadEdit = id => id ? getExperiment(id) : Promise.resolve(null)
-
 export function FacultyExperimentForm() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const { data: existing, loading, error } = useRemote(loadEdit, id)
-  const [form, setForm] = useState(emptyExperiment)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
-  useEffect(() => { if (existing) setForm({ ...existing, instructions: existing.instructions?.join('\n') || '', networkingConcepts: existing.networkingConcepts?.join(', ') || '' }) }, [existing])
-  const change = event => setForm(current => ({ ...current, [event.target.name]: event.target.value }))
-  async function submit(event) {
-    event.preventDefault()
-    setSaving(true)
-    setSaveError('')
-    const payload = {
-      title: form.title, description: form.description, objective: form.objective,
-      instructions: form.instructions.split('\n').map(line => line.trim()).filter(Boolean),
-      protocol: form.protocol, difficulty: form.difficulty, expectedOutput: form.expectedOutput,
-      serverRequirement: form.serverRequirement,
-      networkingConcepts: form.networkingConcepts.split(',').map(item => item.trim()).filter(Boolean),
-    }
-    try { if (id) await updateExperiment(id, payload); else await createExperiment(payload); navigate('/faculty/experiments') }
-    catch (failure) { setSaveError(failure.message) }
-    finally { setSaving(false) }
+  const {id}=useParams(),navigate=useNavigate(),{profile}=useAuth()
+  const role=profile.role.toLowerCase()
+  const {data,loading,error}=useRemote(getExperiment,id)
+  const testKey=useMemo(()=>({id,role}),[id,role])
+  const {data:tests,reload}=useRemote(assignmentTests,testKey)
+  const [form,setForm]=useState(null),[busy,setBusy]=useState(false),[failure,setFailure]=useState('')
+  const [testForm,setTestForm]=useState(null),[testError,setTestError]=useState(''),[testBusy,setTestBusy]=useState(false)
+  useEffect(()=>{if(data)setForm({...data,...Object.fromEntries(['instructions','requirements','constraints','networkingConcepts'].map(key=>[key,data[key].join('\n')])),deadline:data.deadline?new Date(data.deadline).toISOString().slice(0,16):''})},[data])
+  function change(e){setForm(current=>({...current,[e.target.name]:e.target.value}))}
+  async function submit(e){
+    e.preventDefault();setBusy(true);setFailure('')
+    const payload={...form,...Object.fromEntries(['instructions','requirements','constraints','networkingConcepts'].map(key=>[key,form[key].split('\n').map(s=>s.trim()).filter(Boolean)])),deadline:form.deadline?new Date(form.deadline+'Z').toISOString():null}
+    try{await updateExperiment(id,payload,role);navigate('/'+role+'/assignments')}catch(e){setFailure(e.message)}finally{setBusy(false)}
   }
-  return <><Link className="back-link" to="/faculty/experiments"><ArrowLeft size={16} /> Experiments</Link><Header eyebrow="FACULTY" title={id ? 'Edit experiment' : 'Create experiment'} description="Add clear learning objectives and instructions for students." /><DataState loading={loading} error={error}><form className="content-card experiment-form" onSubmit={submit}>
-    <label>Title<input name="title" required maxLength="120" value={form.title} onChange={change} /></label>
-    <label>Short description<textarea name="description" required maxLength="500" rows="2" value={form.description} onChange={change} /></label>
-    <label>Objective<textarea name="objective" required maxLength="1000" rows="3" value={form.objective} onChange={change} /></label>
-    <label>Instructions <small>One step per line</small><textarea name="instructions" required rows="5" value={form.instructions} onChange={change} /></label>
-    <div className="form-row"><label>Protocol<select name="protocol" value={form.protocol} onChange={change}>{['TCP', 'UDP', 'DNS', 'HTTP', 'ICMP'].map(value => <option key={value}>{value}</option>)}</select></label><label>Difficulty<select name="difficulty" value={form.difficulty} onChange={change}>{['EASY', 'MEDIUM', 'HARD'].map(value => <option key={value}>{value}</option>)}</select></label></div>
-    <label>Expected output<textarea name="expectedOutput" required maxLength="500" rows="2" value={form.expectedOutput} onChange={change} /></label>
-    <label>Server requirement<input name="serverRequirement" required maxLength="200" value={form.serverRequirement} onChange={change} /></label>
-    <label>Networking concepts <small>Comma separated</small><input name="networkingConcepts" value={form.networkingConcepts} onChange={change} /></label>
-    {saveError && <p className="form-error" role="alert">{saveError}</p>}<button className="primary-button" disabled={saving}>{saving ? 'Saving…' : id ? 'Save changes' : 'Create experiment'}</button>
-  </form></DataState></>
+  async function testSubmit(e){
+    e.preventDefault();setTestBusy(true);setTestError('')
+    try{
+      const configuration=JSON.parse(testForm.configuration)
+      await saveTest(id,{...testForm,weight:Number(testForm.weight),configuration},role)
+      setTestForm(null);reload()
+    }catch(e){setTestError(e.message)}finally{setTestBusy(false)}
+  }
+  const editTest=test=>{setTestError('');setTestForm({...test,configuration:JSON.stringify(test.configuration,null,2)})}
+  return <><Link className="back-link" to={'/'+role+'/assignments'}><ArrowLeft size={16}/> Assignments</Link><Header title="Edit assignment and evaluation" description="Changes are stored in PostgreSQL and applied to future executions."/><DataState loading={loading} error={error}>{form&&<form className="content-card experiment-form" onSubmit={submit}>
+    <label>Title<input required name="title" maxLength={160} value={form.title} onChange={change}/></label>
+    {['description','objective','expectedBehavior','requirements','constraints','instructions','networkingConcepts'].map(key=><label key={key}>{({expectedBehavior:'Expected behavior',networkingConcepts:'Networking concepts'})[key]||key[0].toUpperCase()+key.slice(1)}{['requirements','constraints','instructions','networkingConcepts'].includes(key)&&<small>One item per line</small>}<textarea required name={key} value={form[key]} onChange={change} rows={3} maxLength={10000}/></label>)}
+    <div className="form-row"><label>Difficulty<select name="difficulty" value={form.difficulty} onChange={change}>{['EASY','MEDIUM','HARD'].map(value=><option key={value}>{value}</option>)}</select></label><label>Deadline (UTC)<input type="datetime-local" name="deadline" value={form.deadline} onChange={change}/></label></div>
+    {failure&&<p className="form-error" role="alert">{failure}</p>}<button className="primary-button" disabled={busy}>{busy?'Saving…':'Save assignment'}</button>
+  </form>}</DataState>
+  <section className="content-card"><div className="section-heading"><h2>Automated test cases</h2><button className="secondary-button" onClick={()=>editTest({name:'',weight:10,enabled:true,configuration:{input:{}}})}>Add test case</button></div><p>Input JSON is passed to solve(input). Each verdict is verified against actual network traffic. The final score uses the enabled test weights.</p><div className="table-wrap"><table><thead><tr><th>Name</th><th>Weight</th><th>Status</th><th>Configuration</th><th></th></tr></thead><tbody>{tests?.map(t=><tr key={t.id}><td>{t.name}</td><td>{t.weight}</td><td>{t.enabled?'Enabled':'Disabled'}</td><td><code>{JSON.stringify(t.configuration)}</code></td><td><button onClick={()=>editTest(t)}>Edit test</button></td></tr>)}</tbody></table></div>
+  {testForm&&<form className="experiment-form test-editor" onSubmit={testSubmit}><h3>{testForm.id?'Edit test case':'New test case'}</h3><label>Test name<input required maxLength={255} value={testForm.name} onChange={e=>setTestForm({...testForm,name:e.target.value})}/></label><label>Weight<input type="number" min={1} max={100} required value={testForm.weight} onChange={e=>setTestForm({...testForm,weight:e.target.value})}/></label><label>Test configuration JSON<textarea className="code-editor" rows={6} required value={testForm.configuration} onChange={e=>setTestForm({...testForm,configuration:e.target.value})}/></label><label className="checkbox-label"><input type="checkbox" checked={testForm.enabled} onChange={e=>setTestForm({...testForm,enabled:e.target.checked})}/> Enabled</label>{testError&&<p className="form-error" role="alert">{testError}</p>}<div className="terminal-actions"><button className="primary-button" disabled={testBusy}>{testBusy?'Saving…':'Save test case'}</button><button type="button" className="secondary-button" onClick={()=>setTestForm(null)}>Cancel</button></div></form>}
+  </section></>
 }
-
+function AttemptsTable({data=[]}) {
+  return data.length?<div className="table-wrap"><table><thead><tr><th>Student</th><th>Assignment</th><th>Attempt</th><th>Status</th><th>Started</th><th>Score</th><th></th></tr></thead><tbody>{data.map(a=><tr key={a.id}><td>{a.studentName}</td><td>{a.assignmentTitle}</td><td>{a.attemptNumber}</td><td><Status value={a.status}/></td><td>{new Date(a.startedAt).toLocaleString()}</td><td>{a.automatedScore??'—'}</td><td><Link to={'/faculty/sessions/'+a.id}>Inspect work</Link></td></tr>)}</tbody></table></div>:<div className="state-card">No attempts found.</div>
+}
 export function FacultySessions() {
-  const [filters, setFilters] = useState({ experimentId: '', status: '', date: '' })
-  const [query, setQuery] = useState('')
-  const { data, loading, error } = useRemote(facultySessions, query)
-  const { data: experiments } = useRemote(listExperiments)
-  function apply(event) {
-    event.preventDefault()
-    setQuery(new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString())
-  }
-  return <><Header eyebrow="FACULTY" title="Student sessions" description="Monitor experiment activity and connection states." /><form className="filter-bar" onSubmit={apply}><select aria-label="Filter by experiment" value={filters.experimentId} onChange={event => setFilters(current => ({ ...current, experimentId: event.target.value }))}><option value="">All experiments</option>{experiments?.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select><select aria-label="Filter by status" value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))}><option value="">All statuses</option>{['STARTING', 'RUNNING', 'COMPLETED', 'FAILED', 'STOPPED'].map(value => <option key={value}>{value}</option>)}</select><input type="date" aria-label="Filter by date" value={filters.date} onChange={event => setFilters(current => ({ ...current, date: event.target.value }))} /><button className="secondary-button">Apply filters</button></form><DataState loading={loading} error={error}>{data?.length ? <div className="table-wrap"><table><thead><tr><th>Student</th><th>Experiment</th><th>Session ID</th><th>Status</th><th>Start</th><th>End</th></tr></thead><tbody>{data.map(item => <tr key={item.id}><td>{item.studentName}</td><td>{item.experimentTitle}</td><td><code>{item.id.slice(0, 8)}</code></td><td><span className="badge badge-muted">{item.status}</span></td><td>{new Date(item.startTime).toLocaleString()}</td><td>{item.endTime ? new Date(item.endTime).toLocaleString() : '—'}</td></tr>)}</tbody></table></div> : <div className="state-card">No sessions match these filters.</div>}</DataState></>
+  const [filters,setFilters]=useState({assignmentId:'',status:'',date:''}),[query,setQuery]=useState('')
+  const {data,loading,error,reload}=useRemote(facultySessions,query)
+  const {data:assignments}=useRemote(listExperiments)
+  return <><Header title="Student attempts" description="Inspect student code, execution output and network evidence." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/><form className="filter-bar" onSubmit={e=>{e.preventDefault();setQuery(new URLSearchParams(Object.entries(filters).filter(([,v])=>v)).toString())}}><select aria-label="Assignment filter" value={filters.assignmentId} onChange={e=>setFilters({...filters,assignmentId:e.target.value})}><option value="">All assignments</option>{assignments?.map(a=><option key={a.id} value={a.id}>{a.title}</option>)}</select><select aria-label="Status filter" value={filters.status} onChange={e=>setFilters({...filters,status:e.target.value})}><option value="">All statuses</option>{['STARTING','RUNNING','TESTED','SUBMITTED','FAILED'].map(s=><option key={s}>{s}</option>)}</select><input type="date" aria-label="Start date filter" value={filters.date} onChange={e=>setFilters({...filters,date:e.target.value})}/><button className="secondary-button">Apply filters</button></form><DataState loading={loading} error={error}><AttemptsTable data={data}/></DataState></>
 }
-
+export function FacultyAttempt() {
+  const {id}=useParams()
+  const {data,loading,error}=useRemote(facultySession,id)
+  return <><Link className="back-link" to="/faculty/sessions">All attempts</Link><DataState loading={loading} error={error}>{data&&<><Header title={data.assignmentTitle} description={data.studentName+' · Attempt '+data.attemptNumber}/><Status value={data.status}/><WorkEvidence work={data}/></>}</DataState></>
+}
+const loadStudents=()=>Promise.all([facultyStudents(),facultySessions()])
+const loadStudentDetails=()=>Promise.all([facultyStudents(),facultySessions(),facultySubmissions()])
+export function FacultyStudentDetails() {
+  const {id}=useParams()
+  const {data,loading,error}=useRemote(loadStudentDetails)
+  const [students,attempts,submissions]=data||[[],[],[]]
+  const student=students.find(s=>s.id===id)
+  return <><Link className="back-link" to="/faculty/students">All students</Link><DataState loading={loading} error={error}>{student?<><Header title={student.name} description={student.email+' · '+student.status}/><h2>Assignment attempts</h2><AttemptsTable data={attempts.filter(a=>a.studentId===id)}/><h2>Submissions and grades</h2><SubmissionsTable data={submissions.filter(s=>s.studentId===id)}/></>:<div className="state-card">Student not found.</div>}</DataState></>
+}
+export function FacultyStudents() {
+  const {data,loading,error}=useRemote(loadStudents)
+  const [students,attempts]=data||[[],[]]
+  return <><Header title="Students" description="Registered students and their assignment activity."/><DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Attempts</th><th>Latest score</th></tr></thead><tbody>{students.map(s=>{const work=attempts.filter(a=>a.studentId===s.id);return <tr key={s.id}><td><Link to={'/faculty/students/'+s.id}>{s.name}</Link></td><td>{s.email}</td><td><Status value={s.status}/></td><td>{work.length}</td><td>{work[0]?.automatedScore??'—'}</td></tr>})}</tbody></table></div></DataState></>
+}
+function SubmissionsTable({data=[]}) {
+  return data.length?<div className="table-wrap"><table><thead><tr><th>Student</th><th>Assignment</th><th>Submitted</th><th>Status</th><th>Automated</th><th>Faculty</th><th></th></tr></thead><tbody>{data.map(s=><tr key={s.id}><td>{s.studentName}</td><td>{s.assignmentTitle}</td><td>{new Date(s.submittedAt).toLocaleString()}</td><td><Status value={s.status}/></td><td>{s.automatedScore}</td><td>{s.facultyGrade??'—'}</td><td><Link to={'/faculty/submissions/'+s.id}>Review</Link></td></tr>)}</tbody></table></div>:<div className="state-card">No submissions found.</div>
+}
 export function FacultySubmissions() {
-  const { data, loading, error } = useRemote(facultySubmissions)
-  return <><Header eyebrow="FACULTY" title="Student submissions" description="Review experiment logs, observations, and grades." /><DataState loading={loading} error={error}>{data?.length ? <div className="table-wrap"><table><thead><tr><th>Student</th><th>Experiment</th><th>Submitted</th><th>Status</th><th>Grade</th><th></th></tr></thead><tbody>{data.map(item => <tr key={item.id}><td>{item.studentName}</td><td>{item.experimentTitle}</td><td>{new Date(item.submittedAt).toLocaleString()}</td><td><span className={`badge ${item.status === 'REVIEWED' ? 'badge-success' : 'badge-warning'}`}>{item.status}</span></td><td>{item.grade ?? '—'}</td><td><Link to={`/faculty/submissions/${item.id}`}>Review</Link></td></tr>)}</tbody></table></div> : <div className="state-card">No student submissions yet.</div>}</DataState></>
+  const {data,loading,error,reload}=useRemote(facultySubmissions)
+  return <><Header title="Student submissions" description="Review actual solution code, test results and transcripts." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/><DataState loading={loading} error={error}><SubmissionsTable data={data}/></DataState></>
 }
-
 export function FacultyReview() {
-  const { id } = useParams()
-  const { data, loading, error, reload } = useRemote(facultySubmission, id)
-  const [grade, setGrade] = useState('')
-  const [feedback, setFeedback] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
-  const [saved, setSaved] = useState(false)
-  useEffect(() => { if (data) { setGrade(data.grade ?? ''); setFeedback(data.feedback || '') } }, [data])
-  async function submit(event) {
-    event.preventDefault()
-    setSaving(true)
-    setSaveError('')
-    try { await reviewSubmission(id, grade, feedback); setSaved(true); reload() }
-    catch (failure) { setSaveError(failure.message) }
-    finally { setSaving(false) }
-  }
-  return <><Link className="back-link" to="/faculty/submissions"><ArrowLeft size={16} /> Submissions</Link><DataState loading={loading} error={error}>{data && <><Header eyebrow={`SESSION #${data.sessionId.slice(0, 8)}`} title={data.experimentTitle} description={`${data.studentName} · Submitted ${new Date(data.submittedAt).toLocaleString()}`} /><div className="detail-grid"><div className="detail-main"><section className="content-card"><h2>Student observation</h2><p>{data.result}</p></section><section className="content-card"><h2>Network transcript</h2><div className="submission-logs">{data.logs?.map((entry, index) => <div key={`${entry.at}-${index}`}><strong>{entry.direction === 'STUDENT' ? 'student>' : 'server>'}</strong><code>{entry.text}</code></div>)}</div></section></div><aside className="detail-side"><form className="content-card experiment-form" onSubmit={submit}><h2>Grade and feedback</h2><label>Grade out of 100<input type="number" min="0" max="100" required value={grade} onChange={event => setGrade(event.target.value)} /></label><label>Feedback<textarea required maxLength="2000" rows="6" value={feedback} onChange={event => setFeedback(event.target.value)} /></label>{saveError && <p className="form-error" role="alert">{saveError}</p>}{saved && <p className="success-note" role="status">Review saved successfully.</p>}<button className="primary-button" disabled={saving}>{saving ? 'Saving…' : 'Save review'}</button></form></aside></div></>}</DataState></>
+  const {id}=useParams()
+  const {data,loading,error,reload}=useRemote(facultySubmission,id)
+  const [grade,setGrade]=useState(''),[feedback,setFeedback]=useState(''),[status,setStatus]=useState('REVIEWED')
+  const [busy,setBusy]=useState(false),[failure,setFailure]=useState(''),[saved,setSaved]=useState(false)
+  useEffect(()=>{if(data){setGrade(data.facultyGrade??'');setFeedback(data.facultyFeedback||'')}},[data])
+  async function submit(e){e.preventDefault();setBusy(true);setFailure('');setSaved(false);try{await reviewSubmission(id,grade,feedback,status);setSaved(true);reload()}catch(e){setFailure(e.message)}finally{setBusy(false)}}
+  return <><Link className="back-link" to="/faculty/submissions">All submissions</Link><DataState loading={loading} error={error}>{data&&<><Header title={data.assignmentTitle} description={data.studentName+' · Submitted '+new Date(data.submittedAt).toLocaleString()}/><div className="detail-grid"><div className="detail-main"><WorkEvidence work={data}/></div><aside className="detail-side"><form className="content-card experiment-form" onSubmit={submit}><h2>Faculty review</h2><Status value={data.status}/><label>Grade out of 100<input type="number" min={0} max={100} step="0.01" required value={grade} onChange={e=>setGrade(e.target.value)}/></label><label>Feedback<textarea rows={6} required maxLength={10000} value={feedback} onChange={e=>setFeedback(e.target.value)}/></label><label>Decision<select value={status} onChange={e=>setStatus(e.target.value)}>{['REVIEWED','RETURNED','REJECTED'].map(s=><option key={s}>{s}</option>)}</select></label>{failure&&<p className="form-error" role="alert">{failure}</p>}{saved&&<p className="success-note" role="status">Review saved.</p>}<button className="primary-button" disabled={busy}>{busy?'Saving…':'Save review'}</button></form>{data.reviews.map((r,i)=><section className="content-card" key={i}><strong>{r.facultyName} · {r.status}</strong><p>{r.feedback}</p><small>{new Date(r.createdAt).toLocaleString()}</small></section>)}</aside></div></>}</DataState></>
 }

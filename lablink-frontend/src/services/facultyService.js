@@ -1,10 +1,12 @@
-import { apiRequest } from './api'
-
-export const facultyDashboard = () => apiRequest('/api/faculty/dashboard')
-export const facultySessions = query => apiRequest(`/api/faculty/sessions${query ? `?${query}` : ''}`)
-export const facultySubmissions = () => apiRequest('/api/faculty/submissions')
-export const facultySubmission = id => apiRequest(`/api/faculty/submissions/${encodeURIComponent(id)}`)
-export const reviewSubmission = (id, grade, feedback) => apiRequest(`/api/faculty/submissions/${encodeURIComponent(id)}/review`, { method: 'PATCH', body: JSON.stringify({ grade: Number(grade), feedback }) })
-export const createExperiment = experiment => apiRequest('/api/experiments', { method: 'POST', body: JSON.stringify(experiment) })
-export const updateExperiment = (id, experiment) => apiRequest(`/api/experiments/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(experiment) })
-export const setExperimentStatus = (id, status) => apiRequest(`/api/experiments/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+import {apiRequest} from './api'
+export const facultyDashboard=()=>apiRequest('/api/faculty/dashboard')
+export const facultySessions=query=>apiRequest('/api/faculty/sessions'+(query?'?'+query:''))
+export const facultySession=id=>apiRequest('/api/faculty/sessions/'+id)
+export const facultyStudents=()=>apiRequest('/api/faculty/students')
+export const facultySubmissions=()=>apiRequest('/api/faculty/submissions')
+export const facultySubmission=id=>apiRequest('/api/faculty/submissions/'+id)
+export const reviewSubmission=(id,grade,feedback,status)=>apiRequest('/api/faculty/submissions/'+id+'/review',{method:'PATCH',body:JSON.stringify({grade:Number(grade),feedback,status})})
+export const updateExperiment=(id,body,role='faculty')=>apiRequest('/api/'+role+'/assignments/'+id,{method:'PUT',body:JSON.stringify(body)})
+export const setExperimentStatus=(id,status,role='faculty')=>apiRequest('/api/'+role+'/assignments/'+id+'/status',{method:'PATCH',body:JSON.stringify({status})})
+export const assignmentTests=({id,role})=>apiRequest('/api/'+role+'/assignments/'+id+'/tests')
+export const saveTest=(id,test,role='faculty')=>apiRequest('/api/'+role+'/assignments/'+id+'/tests'+(test.id?'/'+test.id:''),{method:test.id?'PUT':'POST',body:JSON.stringify(test)})

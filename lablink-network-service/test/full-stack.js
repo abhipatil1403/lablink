@@ -24,7 +24,7 @@ const backend=spawn('java',['-jar','target/lablink-backend-0.1.0.jar','--spring.
   env:{...process.env,PORT:String(port),DATABASE_URL:process.env.TEST_DATABASE_URL || 'jdbc:postgresql://127.0.0.1:55432/lablink_test',
     DATABASE_USERNAME:process.env.TEST_DATABASE_USERNAME || 'lablink_test',DATABASE_PASSWORD:process.env.TEST_DATABASE_PASSWORD || '',
     JWT_SECRET:randomBytes(32).toString('hex'),GATEWAY_SHARED_SECRET:key,INITIAL_ADMIN_EMAIL:'admin@e2e.example',
-    INITIAL_ADMIN_PASSWORD:password,FRONTEND_ORIGIN:'http://localhost:5173'}
+    INITIAL_ADMIN_PASSWORD:password,FRONTEND_ORIGIN:'http://localhost:5173,http://localhost:5175'}
 })
 backend.stdout.pipe(output);backend.stderr.pipe(output)
 let gateway
@@ -42,7 +42,7 @@ try {
     if(backend.exitCode!==null)throw new Error('Backend failed; inspect lablink-backend/target/e2e.log')
     try{await api('/api/health');break}catch(e){if(i===99)throw e;await new Promise(resolve=>setTimeout(resolve,500))}
   }
-  gateway=await createNetworkServer({apiBaseUrl:base,gatewayKey:key,frontendOrigin:'http://localhost:5173'})
+  gateway=await createNetworkServer({apiBaseUrl:base,gatewayKey:key,frontendOrigin:'http://localhost:5173,http://localhost:5175'})
   await new Promise(resolve=>gateway.server.listen(0,'127.0.0.1',resolve))
   const login=await api('/api/auth/login',null,{email:'admin@e2e.example',password})
   const admin=login.token
@@ -81,6 +81,13 @@ try {
   assert.equal(servers.length,7)
   assert.ok(servers.every(server=>server.port>0&&server.lastHeartbeat))
   console.log('PASS admin faculty creation, seven SQL assignments, service heartbeats and grading workflow')
+  if(process.env.LABLINK_UI_SMOKE==='1') {
+    const ui=spawn(process.execPath,[fileURLToPath(new URL('../../lablink-frontend/test/ui-smoke.mjs',import.meta.url))],{
+      windowsHide:true,stdio:'inherit',env:{...process.env,UI_API_BASE_URL:base,UI_TEST_PASSWORD:password,
+        UI_WS_URL:'ws://localhost:'+gateway.server.address().port+'/ws'}})
+    const result=await new Promise(resolve=>ui.once('exit',resolve))
+    assert.equal(result,0,'Browser workflow checks must pass')
+  }
 }finally{
   if(gateway)await gateway.close()
   backend.kill()

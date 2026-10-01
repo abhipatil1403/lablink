@@ -1,4 +1,4 @@
-import { token } from './sessionAuth'
+import { clearToken, token } from './sessionAuth'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
@@ -20,6 +20,9 @@ export async function apiRequest(path, options = {}) {
   }
   if (response.status === 204) return null
   const body = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(body?.message || `Request failed (${response.status})`)
+  if (!response.ok) {
+    if (response.status === 401) clearToken()
+    throw new Error(body?.message || `Request failed (${response.status})`)
+  }
   return body
 }

@@ -6,7 +6,8 @@ import { logout } from './services/authService'
 
 const studentLinks = [
   { to: '/student', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/student/experiments', label: 'Experiments', icon: BookOpen },
+  { to: '/student/assignments', label: 'Assignments', icon: BookOpen },
+  { to: '/student/attempts', label: 'Attempts', icon: ClipboardList },
   { to: '/student/submissions', label: 'Submissions', icon: ClipboardList },
   { to: '/student/profile', label: 'My profile', icon: UserRound },
 ]

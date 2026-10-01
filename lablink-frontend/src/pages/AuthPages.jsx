@@ -46,7 +46,7 @@ export function RegisterPage() {
 
   async function submit(event) {
     event.preventDefault()
-    if (password.length < 6) { setError('Password must be at least six characters.'); return }
+    if (password.length < 8) { setError('Password must be at least eight characters.'); return }
     if (password !== confirm) { setError('Passwords do not match.'); return }
     setBusy(true)
     setError('')
@@ -62,7 +62,7 @@ export function RegisterPage() {
       <label htmlFor="email">Email address</label>
       <input id="email" type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} />
       <label htmlFor="password">Password</label>
-      <input id="password" type="password" autoComplete="new-password" minLength="6" required value={password} onChange={event => setPassword(event.target.value)} />
+      <input id="password" type="password" autoComplete="new-password" minLength="8" maxLength="72" required value={password} onChange={event => setPassword(event.target.value)} />
       <label htmlFor="confirm">Confirm password</label>
       <input id="confirm" type="password" autoComplete="new-password" required value={confirm} onChange={event => setConfirm(event.target.value)} />
       {error && <p className="form-error" role="alert">{error}</p>}
