@@ -23,6 +23,7 @@ public class SecurityConfiguration {
             .authorizeHttpRequests(a -> a
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/health", "/api/auth/login", "/api/auth/register").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/internal/services/heartbeat").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/faculty/**").hasRole("FACULTY")
                 .requestMatchers("/api/internal/**", "/api/sessions/**", "/api/submissions/**").hasRole("STUDENT")

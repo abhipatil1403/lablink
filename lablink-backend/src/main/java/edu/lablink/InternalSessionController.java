@@ -24,6 +24,9 @@ public class InternalSessionController {
         if (supplied == null || !MessageDigest.isEqual(key, supplied.getBytes(StandardCharsets.UTF_8)))
             throw new ApiException(HttpStatus.FORBIDDEN, "Gateway credentials required");
         var attempt = store.get(Attempt.class, id); Access.owner(attempt.student);
+        // Status is also checked when starting; recheck here for existing attempts.
+        if (!"ACTIVE".equals(store.server(attempt).status))
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Network service is disabled");
         if (attempt.startedAt.isBefore(Instant.now().minus(Duration.ofHours(2))) || "SUBMITTED".equals(attempt.status))
             throw new ApiException(HttpStatus.CONFLICT, "This attempt has expired or was submitted");
         return attempt;

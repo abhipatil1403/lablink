@@ -1,157 +1,110 @@
 import http from 'node:http'
-import net from 'node:net'
 import { fileURLToPath } from 'node:url'
 import { WebSocket, WebSocketServer } from 'ws'
+import { startServices } from './services.js'
+import { runSolution } from './runner.js'
+import { evaluate } from './evaluate.js'
 
-export function createNetworkServer(options) {
-  const { apiBaseUrl, gatewayKey, tcpHost, tcpPort, frontendOrigin } = options
-  if (!gatewayKey) throw new Error('GATEWAY_SHARED_SECRET is required')
-
-  const server = http.createServer((request, response) => {
-    if (request.url === '/health') {
-      response.writeHead(200, { 'Content-Type': 'application/json' })
-      response.end(JSON.stringify({ status: 'ONLINE' }))
-    } else {
-      response.writeHead(404)
-      response.end()
-    }
-  })
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 })
-  server.on('upgrade', (request, socket, head) => {
-    if (request.url !== '/ws' || request.headers.origin !== frontendOrigin) {
-      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n')
-      socket.destroy()
-      return
-    }
-    wss.handleUpgrade(request, socket, head, client => wss.emit('connection', client))
-  })
-  wss.on('connection', ws => bridge(ws, { apiBaseUrl, gatewayKey, tcpHost, tcpPort }))
-  return { server, wss }
-}
-
-function bridge(ws, options) {
-  let status = 'AUTHENTICATING'
-  let tcp = null
-  let token = null
-  let sessionId = null
-  let validated = false
-  let buffer = ''
-  let commandQueue = Promise.resolve()
-  let responseQueue = Promise.resolve()
-  const timer = setTimeout(() => stop('Authentication timed out.'), 10_000)
-  const send = message => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)) }
-
-  async function api(path, method = 'GET', body) {
-    const response = await fetch(`${options.apiBaseUrl}${path}`, {
-      method,
-      signal: AbortSignal.timeout(5000),
-      headers: { Authorization: `Bearer ${token}`, 'X-LabLink-Gateway-Key': options.gatewayKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    })
-    if (!response.ok) throw new Error(`API validation failed (${response.status})`)
-    return response.json()
+export async function createNetworkServer({apiBaseUrl,gatewayKey,frontendOrigin}) {
+  if (!gatewayKey || gatewayKey.length<32) throw new Error('GATEWAY_SHARED_SECRET requires at least 32 characters')
+  const suite=await startServices()
+  const origins=frontendOrigin.split(',').map(s=>s.trim())
+  const busyAttempts=new Set()
+  async function heartbeat() {
+    await fetch(apiBaseUrl+'/api/internal/services/heartbeat',{
+      method:'POST',signal:AbortSignal.timeout(5000),
+      headers:{'Content-Type':'application/json','X-LabLink-Gateway-Key':gatewayKey},
+      body:JSON.stringify({endpoints:suite.endpoints})
+    }).catch(()=>{})
   }
-
-  function stop(message) {
-    if (status === 'CLOSED' || status === 'ERROR') return
-    const shouldFailSession = validated && (status === 'CONNECTED' || status === 'CONNECTING')
-    status = 'ERROR'
-    clearTimeout(timer)
-    if (tcp) tcp.destroy()
-    send({ type: 'error', message })
-    if (sessionId && token && shouldFailSession) api(`/api/internal/sessions/${encodeURIComponent(sessionId)}/state`, 'POST', { status: 'FAILED' }).catch(() => {})
-    ws.close(1011, 'Connection failed')
-  }
-
-  ws.on('message', async raw => {
-    let message
-    try { message = JSON.parse(raw.toString()) } catch { stop('Invalid WebSocket message.'); return }
-    if (status === 'AUTHENTICATING') {
-      if (message.type !== 'authenticate' || typeof message.token !== 'string' || typeof message.sessionId !== 'string'
-          || message.token.length > 4096 || !/^[a-f0-9-]{36}$/i.test(message.sessionId)) {
-        stop('Invalid session credentials.')
+  await heartbeat()
+  const heartbeatTimer=setInterval(heartbeat,30000)
+  heartbeatTimer.unref()
+  const server=http.createServer((request,response)=>{
+    if (request.url==='/health') {
+      response.writeHead(200,{'Content-Type':'application/json'})
+      response.end(JSON.stringify({status:'ONLINE',services:Object.keys(suite.endpoints).filter(s=>s!=='offline'),activeRuns:busyAttempts.size}))
+    } else response.writeHead(404).end()
+  })
+  const wss=new WebSocketServer({noServer:true,maxPayload:40000})
+  server.on('upgrade',(request,socket,head)=>{
+    if (request.url!=='/ws' || !origins.includes(request.headers.origin) || wss.clients.size>=100) {
+      socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return
+    }
+    wss.handleUpgrade(request,socket,head,client=>wss.emit('connection',client))
+  })
+  wss.on('connection',ws=>{
+    let token,id,ready=false,busy=false
+    const send=value=>{if(ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify(value))}
+    const timer=setTimeout(()=>ws.close(1008,'Authentication timeout'),10000)
+    async function api(suffix,body) {
+      const response=await fetch(apiBaseUrl+'/api/internal/sessions/'+id+'/'+suffix,{
+        method:body?'POST':'GET',signal:AbortSignal.timeout(5000),
+        headers:{Authorization:'Bearer '+token,'X-LabLink-Gateway-Key':gatewayKey,...(body?{'Content-Type':'application/json'}:{})},
+        ...(body?{body:JSON.stringify(body)}:{})
+      })
+      const data=await response.json().catch(()=>({}))
+      if (!response.ok) throw new Error(data.message || 'Backend unavailable ('+response.status+')')
+      return data
+    }
+    ws.on('message',async raw=>{
+      let message
+      try {message=JSON.parse(raw.toString())} catch {send({type:'error',message:'Invalid message'});return}
+      if (!ready) {
+        if (message.type!=='authenticate' || typeof message.token!=='string' || message.token.length>4096 ||
+            !/^[a-f0-9-]{36}$/i.test(message.sessionId)) {ws.close(1008,'Invalid authentication');return}
+        token=message.token;id=message.sessionId;clearTimeout(timer)
+        try {await api('validate');ready=true;send({type:'status',status:'READY'})}
+        catch(error) {send({type:'error',message:error.message});ws.close(1008,'Authentication failed')}
         return
       }
-      token = message.token
-      sessionId = message.sessionId
-      status = 'VALIDATING'
-      clearTimeout(timer)
+      if (message.type!=='execute' || !['run','test'].includes(message.mode) || typeof message.code!=='string' ||
+          !message.code.trim() || message.code.length>32768) {send({type:'error',message:'Invalid execution request'});return}
+      if (busy || busyAttempts.has(id) || busyAttempts.size>=4) {send({type:'error',message:'An execution is running; try again shortly'});return}
+      busy=true;busyAttempts.add(id)
       try {
-        await api(`/api/internal/sessions/${encodeURIComponent(sessionId)}/validate`)
-      } catch {
-        stop('Session authentication failed or LabLink API is unavailable.')
-        return
-      }
-      if (status !== 'VALIDATING') return
-      validated = true
-      status = 'CONNECTING'
-      tcp = net.createConnection({ host: options.tcpHost, port: options.tcpPort })
-      tcp.setEncoding('utf8')
-      tcp.setTimeout(60_000)
-      tcp.on('connect', async () => {
-        if (status !== 'CONNECTING') return
-        try { await api(`/api/internal/sessions/${encodeURIComponent(sessionId)}/state`, 'POST', { status: 'RUNNING' }) }
-        catch { stop('Unable to start the experiment session.'); return }
-        if (status !== 'CONNECTING') return
-        status = 'CONNECTED'
-        console.log(`TCP session connected ${sessionId}`)
-        send({ type: 'status', status: 'CONNECTED', server: `${options.tcpHost}:${options.tcpPort}` })
-      })
-      tcp.on('data', chunk => {
-        buffer += chunk
-        if (buffer.length > 8192) { stop('Experiment server sent an oversized response.'); return }
-        let newline = buffer.indexOf('\n')
-        while (newline !== -1) {
-          const text = buffer.slice(0, newline).replace(/\r$/, '')
-          responseQueue = responseQueue.then(async () => {
-            await api(`/api/internal/sessions/${encodeURIComponent(sessionId)}/log`, 'POST', { direction: 'SERVER', text })
-            if (status === 'CONNECTED') send({ type: 'response', text })
-          }).catch(() => stop('Unable to record session transcript.'))
-          buffer = buffer.slice(newline + 1)
-          newline = buffer.indexOf('\n')
+        const assignment=await api('validate')
+        const tests=assignment.evaluationTests
+        if (!tests?.length) throw new Error('No enabled assignment tests')
+        await api('begin',{solution:message.code})
+        send({type:'status',status:'RUNNING'})
+        const selected=message.mode==='test'?tests:tests.slice(0,1)
+        const reports=[],network=[],output=[]
+        for (const test of selected) {
+          const run=await runSolution(message.code,test.configuration.input,suite.endpoints)
+          const verdict=evaluate(test.type,test.configuration.input,run,suite.documents,test.configuration)
+          reports.push({testCaseId:test.id,...verdict})
+          network.push(...run.network.map(entry=>({...entry,testCaseId:test.id})))
+          output.push('Test '+test.id+'\n'+(run.output || '')+'\nResult: '+JSON.stringify(run.value || {})+'\n'+verdict.output)
+          send({type:'testResult',testCaseId:test.id,...verdict})
         }
-      })
-      tcp.on('timeout', () => stop('Experiment server timed out.'))
-      tcp.on('error', error => { console.error(`TCP session error ${sessionId}: ${error.message}`); stop('Experiment server is unavailable.') })
-      tcp.on('close', () => { if (status === 'CONNECTED') stop('Experiment server disconnected.') })
-      return
-    }
-    if (status !== 'CONNECTED' || message.type !== 'command' || typeof message.command !== 'string'
-        || !message.command.trim() || message.command.length > 1024 || /[\r\n]/.test(message.command)) {
-      send({ type: 'error', message: 'Command is unavailable or invalid.' })
-      return
-    }
-    const command = message.command
-    commandQueue = commandQueue.then(async () => {
-      await api(`/api/internal/sessions/${encodeURIComponent(sessionId)}/log`, 'POST', { direction: 'STUDENT', text: command })
-      if (status === 'CONNECTED') tcp.write(`${command}\n`)
-    }).catch(() => stop('Unable to record session transcript.'))
+        // PostgreSQL owns the score, using the current stored weights.
+        const completed=await api('complete',{mode:message.mode,output:output.join('\n\n').slice(0,65000),
+          networkLog:JSON.stringify(network).slice(0,130000),results:message.mode==='test'?reports:[]})
+        send({type:'complete',attempt:completed})
+      } catch(error) {
+        await api('failure',{message:error.message.slice(0,2000)}).catch(()=>{})
+        send({type:'error',message:error.message})
+      } finally {busy=false;busyAttempts.delete(id)}
+    })
+    ws.on('close',()=>clearTimeout(timer))
+    ws.on('error',()=>{})
   })
-  ws.on('close', () => {
-    clearTimeout(timer)
-    const wasConnected = status === 'CONNECTED'
-    status = 'CLOSED'
-    if (tcp) tcp.destroy()
-    if (wasConnected) api(`/api/internal/sessions/${encodeURIComponent(sessionId)}/state`, 'POST', { status: 'STOPPED' }).catch(() => {})
-    console.log(`WebSocket disconnected ${sessionId || 'unauthenticated'}`)
-  })
-  ws.on('error', error => console.error(`WebSocket error: ${error.message}`))
+  return {server,wss,suite,async close(){
+    clearInterval(heartbeatTimer)
+    for(const client of wss.clients) client.terminate()
+    await new Promise(resolve=>{server.close(resolve);server.closeAllConnections()})
+    wss.close();await suite.close()
+  }}
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  try {
-    process.loadEnvFile()
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error
-  }
-  const port = Number(process.env.WS_PORT || 3001)
-  const { server } = createNetworkServer({
-    apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8080',
-    gatewayKey: process.env.GATEWAY_SHARED_SECRET,
-    tcpHost: process.env.TCP_HOST || '127.0.0.1',
-    tcpPort: Number(process.env.TCP_PORT || 9001),
-    frontendOrigin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+if (process.argv[1] && fileURLToPath(import.meta.url)===process.argv[1]) {
+  try {process.loadEnvFile()} catch(error) {if(error.code!=='ENOENT') throw error}
+  const gateway=await createNetworkServer({
+    apiBaseUrl:process.env.API_BASE_URL || 'http://localhost:8080',
+    gatewayKey:process.env.GATEWAY_SHARED_SECRET,
+    frontendOrigin:process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
   })
-  server.on('error', error => { console.error(`Gateway error: ${error.message}`); process.exitCode = 1 })
-  server.listen(port, '0.0.0.0', () => console.log(`LabLink WebSocket gateway listening on ${port}`))
+  gateway.server.listen(Number(process.env.PORT || process.env.WS_PORT || 3001),'0.0.0.0',()=>console.log('LabLink network gateway and seven assignment services ready'))
+  for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>gateway.close().then(()=>process.exit(0)))
 }

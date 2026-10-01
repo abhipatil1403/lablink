@@ -172,6 +172,7 @@ public class LabStore {
     private NetworkSession network(Attempt a) {
         return em.createQuery("from NetworkSession s where s.attempt = :a", NetworkSession.class).setParameter("a", a).getSingleResult();
     }
+    public Server server(Attempt attempt) { return network(attempt).server; }
     public void failure(UUID id, String message) {
         var a = lockedAttempt(id); Access.owner(a.student);
         if ("RUNNING".equals(a.status)) {
