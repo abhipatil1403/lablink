@@ -1,13 +1,16 @@
 import net from 'node:net'
 import { fileURLToPath } from 'node:url'
 
-export function handleCommand(line, now = new Date()) {
+export function handleChatMessage(line, state) {
   const command = line.trim()
-  if (command === 'ping') return 'PONG'
-  if (command === 'time') return now.toISOString()
-  if (command === 'help') return 'Commands: ping, time, help, echo <message>'
-  if (command.startsWith('echo ') && command.slice(5).trim()) return `ECHO: ${command.slice(5)}`
-  return 'ERROR: Unknown command'
+  if (!state.username) {
+    if (!command.startsWith('USER ') || !command.slice(5).trim()) return 'ERROR: Send USER <username> first'
+    state.username = command.slice(5).trim()
+    return `WELCOME ${state.username}`
+  }
+  if (command === 'QUIT') return 'BYE'
+  if (command.startsWith('MSG ') && command.slice(4).trim()) return `MESSAGE RECEIVED: ${command.slice(4).trim()}`
+  return 'ERROR: Send MSG <message> or QUIT'
 }
 
 export function createTcpServer() {
@@ -16,6 +19,7 @@ export function createTcpServer() {
     socket.setEncoding('utf8')
     socket.setTimeout(60_000)
     let buffer = ''
+    const state = { username: null }
 
     socket.on('data', chunk => {
       buffer += chunk
@@ -31,7 +35,9 @@ export function createTcpServer() {
           socket.end('ERROR: Command too long\n')
           return
         }
-        socket.write(`${handleCommand(line)}\n`)
+        const response = handleChatMessage(line, state)
+        socket.write(`${response}\n`)
+        if (line.trim() === 'QUIT' && state.username) socket.end()
         newline = buffer.indexOf('\n')
       }
     })
