@@ -139,6 +139,11 @@ function bridge(ws, options) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  try {
+    process.loadEnvFile()
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
   const port = Number(process.env.WS_PORT || 3001)
   const { server } = createNetworkServer({
     apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8080',

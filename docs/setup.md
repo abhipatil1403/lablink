@@ -40,7 +40,7 @@ NETWORK_SERVICE_URL=http://localhost:3001
 GATEWAY_SHARED_SECRET=replace-with-a-long-random-value
 ```
 
-The backend reads this `.env` at startup. Leave `FIREBASE_SERVICE_ACCOUNT_JSON` empty locally; it is only for a Render secret environment value. Copy the same `GATEWAY_SHARED_SECRET` into `lablink-network-service/.env`. The backend accepts Vite from `FRONTEND_ORIGIN=http://localhost:5173`; leave that value unless the frontend uses a different origin.
+The backend and WebSocket gateway read their local `.env` files at startup. Leave `FIREBASE_SERVICE_ACCOUNT_JSON` empty locally; it is only for a Render secret environment value. Copy the same `GATEWAY_SHARED_SECRET` into `lablink-network-service/.env`. The backend accepts Vite from `FRONTEND_ORIGIN=http://localhost:5173`; leave that value unless the frontend uses a different origin.
 
 ## Start the services
 
