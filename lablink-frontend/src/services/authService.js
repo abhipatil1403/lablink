@@ -1,43 +1,8 @@
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth'
-import { auth } from './firebase'
-import { apiRequest } from './api'
-
-function requireAuth() {
-  if (!auth) throw new Error('Firebase is not configured. Set the VITE_FIREBASE values in .env.')
-  return auth
-}
-
-export async function login(email, password) {
-  return signInWithEmailAndPassword(requireAuth(), email, password)
-}
-
-export async function register(name, email, password) {
-  if (requireAuth().currentUser?.email?.toLowerCase() === email.toLowerCase()) {
-    await apiRequest('/api/users/register', { method: 'POST', body: JSON.stringify({ name }) })
-    return { user: auth.currentUser }
-  }
-  const credentials = await createUserWithEmailAndPassword(requireAuth(), email, password)
-  await updateProfile(credentials.user, { displayName: name })
-  await apiRequest('/api/users/register', { method: 'POST', body: JSON.stringify({ name }) })
-  return credentials
-}
-
-export async function logout() {
-  return signOut(requireAuth())
-}
-
-export function getMyProfile() {
-  return apiRequest('/api/users/me')
-}
-
-export function friendlyAuthError(error) {
-  const messages = {
-    'auth/invalid-credential': 'Invalid email or password.',
-    'auth/user-not-found': 'No account found for this email.',
-    'auth/email-already-in-use': 'An account with this email already exists.',
-    'auth/weak-password': 'Password must be at least six characters.',
-    'auth/invalid-email': 'Enter a valid email address.',
-    'auth/network-request-failed': 'Unable to connect to Firebase Authentication.',
-  }
-  return messages[error.code] || error.message || 'Authentication failed.'
-}
+import { clearToken, saveToken, token } from './sessionAuth'
+const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+async function auth(path, body) { const r = await fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const d = await r.json(); if (!r.ok) throw new Error(d.message || 'Authentication failed.'); saveToken(d.token); return { user: d.user } }
+export const login = (email,password) => auth('/api/auth/login',{email,password})
+export const register = (name,email,password) => auth('/api/auth/register',{name,email,password})
+export const logout = async () => clearToken()
+export async function getMyProfile(){const r=await fetch(`${base}/api/auth/me`,{headers:{Authorization:`Bearer ${token()}`}});const d=await r.json();if(!r.ok)throw new Error(d.message||'Session expired.');return d}
+export const friendlyAuthError = e => e.message || 'Authentication failed.'

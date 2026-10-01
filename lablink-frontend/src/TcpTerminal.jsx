@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, PlugZap, Send, Square, RotateCcw } from 'lucide-react'
-import { auth } from './services/firebase'
+import { token } from './services/sessionAuth'
 import { submitSession } from './services/sessionService'
 
 const wsUrl = import.meta.env.VITE_NETWORK_WS_URL || 'ws://localhost:3001/ws'
@@ -33,12 +33,12 @@ export function TcpTerminal({ session }) {
     setError('')
     async function connect() {
       try {
-        if (!auth?.currentUser) throw new Error('Please log in again.')
-        const token = await auth.currentUser.getIdToken()
+        const accessToken = token()
+        if (!accessToken) throw new Error('Please log in again.')
         if (cancelled) return
         const ws = new WebSocket(wsUrl)
         socket.current = ws
-        ws.onopen = () => ws.send(JSON.stringify({ type: 'authenticate', sessionId: session.id, token }))
+        ws.onopen = () => ws.send(JSON.stringify({ type: 'authenticate', sessionId: session.id, token: accessToken }))
         ws.onmessage = event => {
           let message
           try { message = JSON.parse(event.data) } catch { setError('Invalid gateway response.'); setConnection('ERROR'); return }

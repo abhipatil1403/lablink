@@ -1,16 +1,16 @@
-import { auth } from './firebase'
+import { token } from './sessionAuth'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
 export async function apiRequest(path, options = {}) {
-  if (!auth?.currentUser) throw new Error('Please log in to continue.')
-  const token = await auth.currentUser.getIdToken()
+  const accessToken = token()
+  if (!accessToken) throw new Error('Please log in to continue.')
   let response
   try {
     response = await fetch(`${baseUrl}${path}`, {
       ...options,
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${accessToken}`,
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,
       },
