@@ -1,0 +1,1 @@
+package edu.lablink; import java.util.*; import org.springframework.data.jpa.repository.JpaRepository; public interface UserJpaRepository extends JpaRepository<UserEntity,UUID>{ Optional<UserEntity> findByEmailIgnoreCase(String email); boolean existsByRole(String role); }
