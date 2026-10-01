@@ -55,7 +55,7 @@ public class InternalSessionController {
             throw new ApiException(HttpStatus.CONFLICT, "Session timestamp is invalid");
         }
         if (!List.of("STARTING", "RUNNING", "STOPPED", "FAILED").contains(session.get("status"))
-                || !"tcp-client-server".equals(session.getOrDefault("experimentType", session.get("experimentId")))) {
+                || !"tcp-chat".equals(session.getOrDefault("assignmentType", session.get("experimentType")))) {
             throw new ApiException(HttpStatus.CONFLICT, "Session is not available for TCP connection");
         }
         return Map.of("id", id, "experimentId", session.get("experimentId"), "status", session.get("status"));

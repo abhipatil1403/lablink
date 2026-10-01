@@ -24,6 +24,10 @@ public class FirestoreSeeder {
 
     @EventListener(ApplicationReadyEvent.class)
     public void seed() {
+        for (Map<String, Object> assignment : AssignmentSeeds.assignments()) {
+            String id = (String) assignment.get("id");
+            if (repository.find("assignments", id) == null) repository.create("assignments", id, assignment);
+        }
         for (Map<String, Object> experiment : ExperimentSeeds.experiments()) {
             String id = (String) experiment.get("id");
             if (repository.find("experiments", id) == null) repository.create("experiments", id, experiment);

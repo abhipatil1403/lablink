@@ -1,4 +1,4 @@
 import { apiRequest } from './api'
 
-export const listExperiments = () => apiRequest('/api/experiments')
-export const getExperiment = id => apiRequest(`/api/experiments/${encodeURIComponent(id)}`)
+export const listExperiments = () => apiRequest('/api/assignments')
+export const getExperiment = id => apiRequest(`/api/assignments/${encodeURIComponent(id)}`)

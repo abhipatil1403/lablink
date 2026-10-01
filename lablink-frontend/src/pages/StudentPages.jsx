@@ -35,25 +35,25 @@ export function StudentDashboard() {
   const [experiments, submissions] = data || [[], []]
   const available = experiments.filter(item => item.status === 'ACTIVE')
   const metrics = [
-    { label: 'Available experiments', value: available.length, icon: BookOpen },
-    { label: 'Completed experiments', value: new Set(submissions.map(item => item.experimentId)).size, icon: CheckCircle2 },
+    { label: 'Available assignments', value: available.length, icon: BookOpen },
+    { label: 'Completed assignments', value: new Set(submissions.map(item => item.assignmentId || item.experimentId)).size, icon: CheckCircle2 },
     { label: 'Pending reviews', value: submissions.filter(item => item.status === 'SUBMITTED').length, icon: Clock3 },
     { label: 'Total submissions', value: submissions.length, icon: ClipboardList },
   ]
-  return <><div className="page-heading"><p className="eyebrow">STUDENT DASHBOARD</p><h1>Welcome, {profile.name?.split(' ')[0]}</h1><p>Choose an experiment and learn from real network responses.</p></div><State loading={loading} error={error}>
+  return <><div className="page-heading"><p className="eyebrow">STUDENT DASHBOARD</p><h1>Welcome, {profile.name?.split(' ')[0]}</h1><p>Choose an assignment and solve it against a real network environment.</p></div><State loading={loading} error={error}>
     <section className="metric-grid" aria-label="Student statistics">{metrics.map(({ label, value, icon: Icon }) => <article className="metric-card" key={label}><span className="metric-icon"><Icon size={22} /></span><strong>{value}</strong><span>{label}</span></article>)}</section>
-    <div className="section-heading"><div><p className="eyebrow">LABORATORY</p><h2>Available experiments</h2></div><Link to="/student/experiments" className="text-link">View all <ArrowRight size={16} /></Link></div>
-    {available.length ? <div className="experiment-grid">{available.map(item => <ExperimentCard key={item.id} experiment={item} />)}</div> : <div className="state-card">No active experiments are available.</div>}
+    <div className="section-heading"><div><p className="eyebrow">LABORATORY</p><h2>Available assignments</h2></div><Link to="/student/experiments" className="text-link">View all <ArrowRight size={16} /></Link></div>
+    {available.length ? <div className="experiment-grid">{available.map(item => <ExperimentCard key={item.id} experiment={item} />)}</div> : <div className="state-card">No active assignments are available.</div>}
   </State></>
 }
 
 export function ExperimentCatalog() {
   const { data, loading, error } = useData(loadExperiments)
-  return <><div className="page-heading"><p className="eyebrow">EXPLORE</p><h1>Experiment catalog</h1><p>Browse current and upcoming computer networking labs.</p></div><State loading={loading} error={error} empty={data?.length === 0}><div className="experiment-grid">{data?.map(item => <ExperimentCard key={item.id} experiment={item} />)}</div></State></>
+  return <><div className="page-heading"><p className="eyebrow">ASSIGNMENTS</p><h1>Assignment catalog</h1><p>Build genuine computer networking solutions in controlled environments.</p></div><State loading={loading} error={error} empty={data?.length === 0}><div className="experiment-grid">{data?.map(item => <ExperimentCard key={item.id} experiment={item} />)}</div></State></>
 }
 
 function ExperimentCard({ experiment }) {
-  return <article className="experiment-card"><div className="card-top"><span className="protocol-icon"><Wifi size={21} /></span><span className={`badge ${experiment.status === 'ACTIVE' ? 'badge-success' : 'badge-muted'}`}>{experiment.status === 'ACTIVE' ? 'Available' : 'Coming soon'}</span></div><div className="chip-row"><span className="chip">{experiment.protocol}</span><span className="chip">{experiment.difficulty}</span></div><h3>{experiment.title}</h3><p>{experiment.description}</p><Link to={`/experiment/${experiment.id}`} className="card-link">View experiment <ArrowRight size={16} /></Link></article>
+  return <article className="experiment-card"><div className="card-top"><span className="protocol-icon"><Wifi size={21} /></span><span className={`badge ${experiment.status === 'ACTIVE' ? 'badge-success' : 'badge-muted'}`}>{experiment.status === 'ACTIVE' ? 'Available' : 'Coming soon'}</span></div><div className="chip-row"><span className="chip">{experiment.protocol}</span><span className="chip">{experiment.difficulty}</span></div><h3>{experiment.title}</h3><p>{experiment.description}</p><Link to={`/experiment/${experiment.id}`} className="card-link">{experiment.status === 'ACTIVE' ? 'Start assignment' : 'View assignment'} <ArrowRight size={16} /></Link></article>
 }
 
 export function ExperimentDetails() {
@@ -62,15 +62,15 @@ export function ExperimentDetails() {
   const { data: experiment, loading, error } = useData(getExperiment, id)
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState('')
-  const available = experiment?.status === 'ACTIVE' && experiment?.experimentType === 'tcp-client-server'
+  const available = experiment?.status === 'ACTIVE' && experiment?.assignmentType === 'tcp-chat'
   async function start() {
     setStarting(true)
     setStartError('')
     try { const session = await createSession(id); navigate(`/session/${session.id}`) }
     catch (failure) { setStartError(failure.message); setStarting(false) }
   }
-  return <><Link className="back-link" to="/student/experiments"><ArrowLeft size={16} /> All experiments</Link><State loading={loading} error={error}>
-    {experiment && <><div className="page-heading detail-heading"><div className="chip-row"><span className="chip">{experiment.protocol}</span><span className="chip">{experiment.difficulty}</span><span className={`badge ${experiment.status === 'ACTIVE' ? 'badge-success' : 'badge-muted'}`}>{experiment.status === 'ACTIVE' ? 'Available' : 'Coming soon'}</span></div><h1>{experiment.title}</h1><p>{experiment.description}</p></div><div className="detail-grid"><div className="detail-main"><section className="content-card"><h2>Objective</h2><p>{experiment.objective}</p></section><section className="content-card"><h2>Instructions</h2><ol>{experiment.instructions?.map(step => <li key={step}>{step}</li>)}</ol></section><section className="content-card"><h2>Expected output</h2><p>{experiment.expectedOutput}</p></section></div><aside className="detail-side"><section className="content-card"><h2>Networking concepts</h2><div className="chip-row">{experiment.networkingConcepts?.map(concept => <span className="chip" key={concept}>{concept}</span>)}</div></section><section className="content-card"><h2>Server requirement</h2><p className="server-line"><Server size={18} />{experiment.serverRequirement}</p></section><button className="primary-button" disabled={!available || starting} onClick={start}>{starting ? 'Starting…' : 'Start experiment'} <ArrowRight size={17} /></button>{startError && <p className="form-error" role="alert">{startError}</p>}{!available && <p className="subtle-note">This experiment is not available yet.</p>}</aside></div></>}
+  return <><Link className="back-link" to="/student/experiments"><ArrowLeft size={16} /> All assignments</Link><State loading={loading} error={error}>
+    {experiment && <><div className="page-heading detail-heading"><div className="chip-row"><span className="chip">{experiment.protocol}</span><span className="chip">{experiment.difficulty}</span><span className={`badge ${experiment.status === 'ACTIVE' ? 'badge-success' : 'badge-muted'}`}>{experiment.status === 'ACTIVE' ? 'Available' : 'Coming soon'}</span></div><h1>{experiment.title}</h1><p>{experiment.description}</p></div><div className="detail-grid"><div className="detail-main"><section className="content-card"><h2>Problem statement</h2><p>{experiment.description}</p></section><section className="content-card"><h2>Requirements</h2><ol>{experiment.requirements?.map(step => <li key={step}>{step}</li>)}</ol></section><section className="content-card"><h2>Constraints</h2><ul>{experiment.constraints?.map(item => <li key={item}>{item}</li>)}</ul></section><section className="content-card"><h2>Expected behavior</h2><p>{experiment.expectedBehavior}</p></section></div><aside className="detail-side"><section className="content-card"><h2>Networking concepts</h2><div className="chip-row">{experiment.networkingConcepts?.map(concept => <span className="chip" key={concept}>{concept}</span>)}</div></section><section className="content-card"><h2>Network environment</h2><p className="server-line"><Server size={18} />{experiment.serverRequirement}</p></section><button className="primary-button" disabled={!available || starting} onClick={start}>{starting ? 'Starting…' : 'Start assignment'} <ArrowRight size={17} /></button>{startError && <p className="form-error" role="alert">{startError}</p>}{!available && <p className="subtle-note">This assignment environment is being prepared.</p>}</aside></div></>}
   </State></>
 }
 

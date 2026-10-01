@@ -27,16 +27,16 @@ public class SessionController {
         this.repository = repository;
     }
 
-    record StartRequest(@NotBlank String experimentId) {}
+    record StartRequest(@NotBlank String assignmentId) {}
     record SubmissionRequest(@NotBlank @Size(max = 2000) String result) {}
 
     @PostMapping("/sessions")
     public Map<String, Object> start(@Valid @RequestBody StartRequest input, HttpServletRequest request) {
         Access.requireRole(request, "STUDENT");
-        Map<String, Object> experiment = repository.find("experiments", input.experimentId());
-        if (experiment == null) throw new ApiException(HttpStatus.NOT_FOUND, "Experiment not found");
-        if (!"ACTIVE".equals(experiment.get("status")) || !"tcp-client-server".equals(experiment.get("experimentType"))) {
-            throw new ApiException(HttpStatus.CONFLICT, "This experiment is not available yet");
+        Map<String, Object> assignment = repository.find("assignments", input.assignmentId());
+        if (assignment == null) throw new ApiException(HttpStatus.NOT_FOUND, "Assignment not found");
+        if (!"ACTIVE".equals(assignment.get("status")) || !"tcp-chat".equals(assignment.get("assignmentType"))) {
+            throw new ApiException(HttpStatus.CONFLICT, "This assignment is not available yet");
         }
         Map<String, Object> server = repository.find("experimentServers", "tcp-local");
         if (server == null) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Experiment server is not configured");
@@ -44,8 +44,10 @@ public class SessionController {
         Map<String, Object> session = new HashMap<>();
         session.put("id", id);
         session.put("studentId", Access.uid(request));
-        session.put("experimentId", input.experimentId());
-        session.put("experimentType", experiment.get("experimentType"));
+        session.put("assignmentId", input.assignmentId());
+        session.put("assignmentType", assignment.get("assignmentType"));
+        session.put("experimentId", input.assignmentId());
+        session.put("experimentType", assignment.get("assignmentType"));
         session.put("serverId", "tcp-local");
         session.put("serverAddress", server.get("address") + ":" + server.get("port"));
         session.put("status", "STARTING");
