@@ -1,6 +1,7 @@
 node_modules/
 dist/
 target/
+.lablink-test-db/
 .idea/
 .vscode/
 *.log

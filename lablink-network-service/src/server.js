@@ -63,12 +63,12 @@ export async function createNetworkServer({apiBaseUrl,gatewayKey,frontendOrigin}
       if (busy || busyAttempts.has(id) || busyAttempts.size>=4) {send({type:'error',message:'An execution is running; try again shortly'});return}
       busy=true;busyAttempts.add(id)
       try {
-        const assignment=await api('validate')
-        const tests=assignment.evaluationTests
+        await api('validate')
+        const begun=await api('begin',{solution:message.code})
+        const tests=begun.evaluationTests
         if (!tests?.length) throw new Error('No enabled assignment tests')
-        await api('begin',{solution:message.code})
         send({type:'status',status:'RUNNING'})
-        const selected=message.mode==='test'?tests:tests.slice(0,1)
+        const selected=message.mode==='test'?tests:[tests.reduce((best,current)=>current.weight>best.weight?current:best)]
         const reports=[],network=[],output=[]
         for (const test of selected) {
           const run=await runSolution(message.code,test.configuration.input,suite.endpoints)
@@ -79,8 +79,15 @@ export async function createNetworkServer({apiBaseUrl,gatewayKey,frontendOrigin}
           send({type:'testResult',testCaseId:test.id,...verdict})
         }
         // PostgreSQL owns the score, using the current stored weights.
+        const entries=[];let size=0
+        for(const entry of network) {
+          size+=JSON.stringify(entry).length+1
+          if(size>120000)break
+          entries.push(entry)
+        }
         const completed=await api('complete',{mode:message.mode,output:output.join('\n\n').slice(0,65000),
-          networkLog:JSON.stringify(network).slice(0,130000),results:message.mode==='test'?reports:[]})
+          networkLog:JSON.stringify({entries,totalEvents:network.length,truncated:entries.length!==network.length}),
+          results:message.mode==='test'?reports:[]})
         send({type:'complete',attempt:completed})
       } catch(error) {
         await api('failure',{message:error.message.slice(0,2000)}).catch(()=>{})
@@ -103,7 +110,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url)===process.argv[1]) {
   const gateway=await createNetworkServer({
     apiBaseUrl:process.env.API_BASE_URL || 'http://localhost:8080',
     gatewayKey:process.env.GATEWAY_SHARED_SECRET,
-    frontendOrigin:process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+    frontendOrigin:process.env.CORS_ALLOWED_ORIGINS || process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
   })
   gateway.server.listen(Number(process.env.PORT || process.env.WS_PORT || 3001),'0.0.0.0',()=>console.log('LabLink network gateway and seven assignment services ready'))
   for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>gateway.close().then(()=>process.exit(0)))

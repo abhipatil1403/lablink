@@ -2,9 +2,11 @@ import net from 'node:net'
 import http from 'node:http'
 import dgram from 'node:dgram'
 import { randomUUID, randomInt } from 'node:crypto'
+import { readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { digest } from './services.js'
 
-export function capabilities(endpoints) {
+export function capabilities(endpoints, directory) {
   const sockets = new Map(), files = {}, log = []
   let calls = 0, nextId = 1, logSize = 0
   function record(op, args, response) {
@@ -117,19 +119,28 @@ export function capabilities(endpoints) {
         const header = Buffer.alloc(12); header.writeUInt16BE(id,0); header.writeUInt16BE(0x0100,2); header.writeUInt16BE(1,4)
         const parts = name.split('.').flatMap(label => [Buffer.from([label.length]),Buffer.from(label)])
         const query = Buffer.concat([header,...parts,Buffer.from([0,0,1,0,1])])
-        const timer = setTimeout(() => { client.close(); reject(new Error('DNS timeout')) },800)
+        let timer, attempts=0
+        const send = () => {
+          if (++attempts>3) { client.close(); reject(new Error('DNS timeout')); return }
+          client.send(query,endpoints.dns,'127.0.0.1')
+          timer=setTimeout(send,1000)
+        }
         client.on('error',e => {clearTimeout(timer); client.close(); reject(e)})
         client.on('message',packet => {
           if (packet.length < 12 || packet.readUInt16BE(0) !== id) return
           clearTimeout(timer); client.close()
           resolve({name,address:packet.readUInt16BE(6) ? [...packet.subarray(-4)].join('.') : null,rcode:packet.readUInt16BE(2)&15})
         })
-        client.send(query,endpoints.dns,'127.0.0.1')
+        client.bind(0,'127.0.0.1',send)
       })
     } else if (op === 'save') {
       const name = text(args[0],64), content = text(args[1],32768)
-      if (!/^[A-Za-z0-9_.-]+$/.test(name) || Object.keys(files).length >= 5) throw new Error('Invalid virtual filename or storage limit')
-      files[name] = content; response = true
+      if (!directory || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(name) || name.endsWith('.') ||
+          /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) || Object.keys(files).length >= 5)
+        throw new Error('Invalid sandbox filename or storage limit')
+      const target=join(directory,name)
+      await writeFile(target,content,'utf8')
+      files[name] = await readFile(target,'utf8'); response = true
     } else if (op === 'sha256') response = digest(text(args[0],32768))
     else if (op === 'decodeBase64') response = Buffer.from(text(args[0],32768),'base64').toString('utf8')
     else throw new Error('Unknown capability')

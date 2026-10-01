@@ -29,8 +29,11 @@ test('wrong solutions fail and the runtime exposes no host capabilities',async()
   assert.deepEqual(run.value,{host:'undefined',fs:'undefined',fetch:'undefined'})
   const bad=await runSolution('function solve(input) {return {}}',{path:'/students/42'},suite.endpoints)
   assert.equal(evaluate('http-api',{path:'/students/42'},bad,suite.documents).passed,false)
+  assert.equal(evaluate('http-api',{path:'/students/42'},{error:'Expected execution failure'},suite.documents).status,'ERROR')
   const blocked=await runSolution('function solve(input){return tcp.connect("example.com")}',{},suite.endpoints)
   assert.match(blocked.error,/Unknown TCP service/)
+  const path=await runSolution('function solve(){save("../escape.txt","x");return {}}',{},suite.endpoints)
+  assert.match(path.error,/Invalid sandbox filename/)
 })
 test('infinite loops, excess memory, output and operation counts are constrained',async()=>{
   const loop=await runSolution('function solve(){while(true){}}',{},suite.endpoints,{deadlineMs:100,timeoutMs:3000})
@@ -56,7 +59,8 @@ test('WebSocket gateway authenticates before execution and stores computed resul
       let raw='';request.on('data',c=>raw+=c);request.on('end',()=>{
         stored.push({path:request.url,body:JSON.parse(raw)})
         response.setHeader('Content-Type','application/json')
-        response.end(JSON.stringify({id,status:'TESTED',testResults:JSON.parse(raw).results || []}))
+        response.end(JSON.stringify({id,status:'TESTED',testResults:JSON.parse(raw).results || [],
+          evaluationTests:[{id:'test-1',type:'http-api',configuration:{input:{path:'/students/42'}}}]}))
       })
     }else{
       response.setHeader('Content-Type','application/json')

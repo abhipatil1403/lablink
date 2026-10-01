@@ -37,6 +37,9 @@ public class AdminController {
         var faculty = users.save(new UserEntity(body.name().trim(), email, passwords.encode(body.password()), "FACULTY"));
         store.audit("CREATE_FACULTY", faculty.getId(), email); return faculty;
     }
+    @GetMapping("/users/{id}") public UserEntity user(@PathVariable UUID id) {
+        return store.get(UserEntity.class, id);
+    }
     record Status(@NotNull @Pattern(regexp = "ACTIVE|INACTIVE|SUSPENDED") String status) {}
     @PatchMapping("/users/{id}/status") public UserEntity status(@PathVariable UUID id, @Valid @RequestBody Status body) {
         if (id.equals(Access.user().getId())) throw new ApiException(HttpStatus.CONFLICT, "You cannot deactivate your own account");
@@ -52,7 +55,9 @@ public class AdminController {
             var d = new LinkedHashMap<String, Object>();
             d.put("id", s.id); d.put("name", s.name); d.put("service", s.service); d.put("address", s.address);
             d.put("port", s.port); d.put("supportedProtocols", List.of(s.protocol)); d.put("status", s.status);
-            d.put("lastHeartbeat", s.lastHeartbeat); return (Map<String, Object>) d;
+            d.put("lastHeartbeat", s.lastHeartbeat); d.put("activeSessions", store.activeSessions(s));
+            d.put("health", s.lastHeartbeat != null && s.lastHeartbeat.isAfter(Instant.now().minusSeconds(90)) ? "ONLINE" : "OFFLINE");
+            return (Map<String, Object>) d;
         }).toList();
     }
     @PatchMapping("/servers/{id}/status") public Map<String, Object> serverStatus(@PathVariable UUID id, @Valid @RequestBody Status body) {
@@ -62,12 +67,14 @@ public class AdminController {
     @GetMapping("/audit") public List<Audit> audit() {
         return store.all(Audit.class, "AuditLog").stream().sorted(Comparator.comparing((Audit a) -> a.createdAt).reversed()).limit(200).toList();
     }
-    @GetMapping("/dashboard") public Map<String, Object> dashboard() {
+    @GetMapping({"/dashboard", "/system-status"}) public Map<String, Object> dashboard() {
         var people = users.findAll(); var assignments = store.all(Assignment.class, "Assignment");
         var network = probe();
         return Map.ofEntries(
             Map.entry("totalUsers", people.size()), Map.entry("students", people.stream().filter(u -> "STUDENT".equals(u.getRole())).count()),
             Map.entry("faculty", people.stream().filter(u -> "FACULTY".equals(u.getRole())).count()),
+            Map.entry("admins", people.stream().filter(u -> "ADMIN".equals(u.getRole())).count()),
+            Map.entry("pendingReviews", store.submissions().stream().filter(s -> "SUBMITTED".equals(s.status)).count()),
             Map.entry("experiments", assignments.size()), Map.entry("activeExperiments", assignments.stream().filter(a -> "ACTIVE".equals(a.status)).count()),
             Map.entry("activeSessions", store.attempts().stream().filter(a -> "RUNNING".equals(a.status)).count()),
             Map.entry("submissions", store.submissions().size()), Map.entry("experimentServers", servers().size()),

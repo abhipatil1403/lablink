@@ -11,8 +11,9 @@ export const login=(email,password)=>auth('/api/auth/login',{email,password})
 export const register=(name,email,password)=>auth('/api/auth/register',{name,email,password})
 export async function logout() {
   const accessToken=token()
-  clearToken()
-  if(accessToken)await fetch(base+'/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+accessToken}}).catch(()=>{})
+  try {
+    if(accessToken)await fetch(base+'/api/auth/logout',{method:'POST',signal:AbortSignal.timeout(3000),headers:{Authorization:'Bearer '+accessToken}}).catch(()=>{})
+  } finally { if(token()===accessToken)clearToken() }
 }
 export async function getMyProfile() {
   const response=await fetch(base+'/api/auth/me',{headers:{Authorization:'Bearer '+token()}})

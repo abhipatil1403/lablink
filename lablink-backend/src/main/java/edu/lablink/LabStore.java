@@ -63,8 +63,8 @@ public class LabStore {
         return dto;
     }
     private Map<String, Object> testResult(TestResult r) {
-        return Map.of("testCaseId", r.testCase.id, "name", r.testCase.name, "weight", r.testCase.weight,
-            "passed", r.passed, "output", r.output);
+        return Map.of("testCaseId", r.testCase.id, "name", r.evaluatedName, "weight", r.evaluatedWeight,
+            "status", r.status, "passed", r.passed, "output", r.output);
     }
     public Map<String, Object> submission(Submission s) {
         Map<String, Object> dto = new LinkedHashMap<>();
@@ -137,32 +137,47 @@ public class LabStore {
         if (attempt == null) throw new ApiException(HttpStatus.NOT_FOUND, "Attempt not found");
         return attempt;
     }
-    public void begin(UUID id, String solution) {
+    public List<Map<String, Object>> begin(UUID id, String solution) {
         var attempt = lockedAttempt(id); Access.owner(attempt.student);
         if ("SUBMITTED".equals(attempt.status) || "RUNNING".equals(attempt.status))
             throw new ApiException(HttpStatus.CONFLICT, "Attempt cannot start in its current state");
         if (!"ACTIVE".equals(attempt.assignment.status)) throw new ApiException(HttpStatus.CONFLICT, "Assignment is inactive");
+        if (!"ACTIVE".equals(server(attempt).status)) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Network service is disabled");
+        attempt.evaluationPlan = tests(attempt.assignment).stream().filter(t -> t.enabled).map(t -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", t.id.toString()); item.put("name", t.name); item.put("weight", t.weight);
+            item.put("type", t.type); item.put("configuration", t.configuration); return item;
+        }).toList();
+        if (attempt.evaluationPlan.isEmpty()) throw new ApiException(HttpStatus.CONFLICT, "No enabled tests for this assignment");
         attempt.solution = solution; attempt.status = "RUNNING"; attempt.automatedScore = null;
+        attempt.executionStartedAt = Instant.now(); attempt.endedAt = null;
         results(attempt).forEach(em::remove);
         network(attempt).status = "RUNNING";
+        return attempt.evaluationPlan;
     }
-    public record Report(UUID testCaseId, boolean passed, String output) {}
+    public record Report(UUID testCaseId, boolean passed, String output, String status) {}
     public void complete(UUID id, String mode, String output, String networkLog, List<Report> reports) {
         var attempt = lockedAttempt(id); Access.owner(attempt.student);
         if (!"RUNNING".equals(attempt.status)) throw new ApiException(HttpStatus.CONFLICT, "Attempt is not running");
         attempt.executionLog = output; attempt.networkLog = networkLog; attempt.endedAt = Instant.now();
         if ("test".equals(mode)) {
-            var tests = tests(attempt.assignment).stream().filter(t -> t.enabled).toList();
+            var tests = attempt.evaluationPlan;
             if (tests.isEmpty() || reports.size() != tests.size() ||
                 reports.stream().map(Report::testCaseId).distinct().count() != tests.size())
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Every enabled test requires exactly one result");
             int total = 0, earned = 0;
             for (var test : tests) {
-                Report report = reports.stream().filter(r -> test.id.equals(r.testCaseId())).findFirst()
+                UUID testId = UUID.fromString(test.get("id").toString());
+                Report report = reports.stream().filter(r -> testId.equals(r.testCaseId())).findFirst()
                     .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Unknown test result"));
-                TestResult result = new TestResult(); result.attempt = attempt; result.testCase = test;
+                TestResult result = new TestResult(); result.attempt = attempt; result.testCase = get(TestCase.class, testId);
                 result.passed = report.passed(); result.output = report.output() == null ? "" : report.output();
-                em.persist(result); total += test.weight; if (result.passed) earned += test.weight;
+                result.evaluatedName = test.get("name").toString();
+                result.evaluatedWeight = ((Number) test.get("weight")).intValue();
+                result.status = report.status() == null ? (report.passed() ? "PASSED" : "FAILED") : report.status();
+                if (!Set.of("PASSED", "FAILED", "ERROR").contains(result.status) || report.passed() != "PASSED".equals(result.status))
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "Test status and passed flag must agree");
+                em.persist(result); total += result.evaluatedWeight; if (result.passed) earned += result.evaluatedWeight;
             }
             attempt.automatedScore = BigDecimal.valueOf(earned * 100.0 / total).setScale(2, RoundingMode.HALF_UP);
             attempt.status = "TESTED";
@@ -173,6 +188,10 @@ public class LabStore {
         return em.createQuery("from NetworkSession s where s.attempt = :a", NetworkSession.class).setParameter("a", a).getSingleResult();
     }
     public Server server(Attempt attempt) { return network(attempt).server; }
+    public long activeSessions(Server server) {
+        return em.createQuery("select count(s) from NetworkSession s where s.server = :server and s.status = 'RUNNING'", Long.class)
+            .setParameter("server", server).getSingleResult();
+    }
     public void failure(UUID id, String message) {
         var a = lockedAttempt(id); Access.owner(a.student);
         if ("RUNNING".equals(a.status)) {

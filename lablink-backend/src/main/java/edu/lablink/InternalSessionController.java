@@ -24,9 +24,6 @@ public class InternalSessionController {
         if (supplied == null || !MessageDigest.isEqual(key, supplied.getBytes(StandardCharsets.UTF_8)))
             throw new ApiException(HttpStatus.FORBIDDEN, "Gateway credentials required");
         var attempt = store.get(Attempt.class, id); Access.owner(attempt.student);
-        // Status is also checked when starting; recheck here for existing attempts.
-        if (!"ACTIVE".equals(store.server(attempt).status))
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Network service is disabled");
         if (attempt.startedAt.isBefore(Instant.now().minus(Duration.ofHours(2))) || "SUBMITTED".equals(attempt.status))
             throw new ApiException(HttpStatus.CONFLICT, "This attempt has expired or was submitted");
         return attempt;
@@ -43,9 +40,10 @@ public class InternalSessionController {
     @PostMapping("/{id}/begin")
     public Map<String, Object> begin(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key,
                                    @Valid @RequestBody Begin body) {
-        validate(id, key); store.begin(id, body.solution()); return Map.of("status", "RUNNING");
+        validate(id, key);
+        return Map.of("status", "RUNNING", "evaluationTests", store.begin(id, body.solution()));
     }
-    record Complete(@Pattern(regexp = "run|test") String mode, @NotNull @Size(max = 65536) String output,
+    record Complete(@NotNull @Pattern(regexp = "run|test") String mode, @NotNull @Size(max = 65536) String output,
                     @NotNull @Size(max = 131072) String networkLog, @NotNull @Size(max = 50) List<LabStore.Report> results) {}
     @PostMapping("/{id}/complete")
     public Map<String, Object> complete(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key,

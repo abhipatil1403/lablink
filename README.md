@@ -1,24 +1,53 @@
-# LabLink
+# LabLink — Connected Virtual Laboratory
 
-LabLink is a connected virtual laboratory for a Computer Network Technology course. Students use a browser terminal to send commands through a WebSocket gateway to a real TCP server. Faculty review submissions, and administrators manage users and inspect service health.
+A college networking laboratory with seven working programming assignments, separate student/faculty/admin workspaces, and PostgreSQL persistence.
 
-## Quick start
+## Stack
 
-1. Complete the Firebase and environment setup in [docs/setup.md](docs/setup.md).
-2. Start the TCP server, backend, WebSocket gateway, then the frontend using the commands in that guide.
-3. Open `http://localhost:5173`, register a student account, and start **TCP Client Server Communication**.
+React + Vite, Spring Boot + Spring Security + BCrypt/JWT, PostgreSQL + Flyway/JPA, Node.js + WebSocket/TCP/UDP/HTTP/DNS. Student JavaScript runs in a separate QuickJS WebAssembly interpreter inside a constrained worker; network operations use real sockets against controlled services.
 
-For production deployment, use the repository's Render Blueprint and the Vercel configuration described in [Setup](docs/setup.md#render-and-vercel-deployment).
+## Start locally
 
-The browser calls the API at `http://localhost:8080`. The backend explicitly accepts the Vite development origin `http://localhost:5173`; after pulling an update, restart the Spring Boot process to load the CORS configuration.
+Follow [the setup guide](docs/setup.md). Start PostgreSQL, then run these in three terminals:
+
+```powershell
+cd lablink-backend
+.\mvnw.cmd spring-boot:run
+```
+
+```powershell
+cd lablink-network-service
+npm ci
+npm start
+```
+
+```powershell
+cd lablink-frontend
+npm ci
+npm run dev
+```
+
+Open http://localhost:5173. The network gateway starts all assignment servers automatically.
+
+## Assignments
+
+1. TCP Chat Client
+2. Reliable File Transfer
+3. UDP Multiplayer Position & Telemetry System
+4. College Student Information API Client
+5. DNS Troubleshooting Challenge
+6. Network Monitoring System
+7. Client-Server File Search
+
+Students edit `solve(input)`, run/test their code, and submit stored code, output, network evidence and computed test scores. Faculty edit assignment metadata/test cases and review, return or reject submissions. Admins create faculty, manage account access, control services and inspect actual system health and audit history.
 
 ## Documentation
 
-- [Architecture](docs/architecture.md)
-- [Firestore data model](docs/database.md)
+- [Setup and Render/Vercel deployment](docs/setup.md)
+- [Architecture and execution boundaries](docs/architecture.md)
+- [Relational model and ER diagram](docs/database.md)
+- [Networking protocols and programming contracts](docs/networking.md)
 - [REST API](docs/api.md)
-- [Network service](docs/networking.md)
-- [Setup and Firebase configuration](docs/setup.md)
-- [Demo flow and test checklist](docs/demo.md)
+- [Demonstration and test commands](docs/demo.md)
 
-Firebase web values belong in `lablink-frontend/.env`, copied from its example. Backend privileges come from Application Default Credentials: set `GOOGLE_APPLICATION_CREDENTIALS` to a service account file outside the repository and `FIREBASE_PROJECT_ID` to the same project. Credentials and actual `.env` files are ignored by Git.
+`render.yaml` prepares two public Render web services. The backend uses Docker; the Node gateway contains all controlled network servers. Configure an existing PostgreSQL database and the final frontend origin before deploying. Secrets belong in local ignored environment files or hosting environment settings.

@@ -7,7 +7,7 @@ import {DataState,Header,Status} from './Common'
 export function AdminDashboard() {
   const {data,loading,error,reload}=useRemote(adminDashboard)
   const metrics=data?[
-    ['Users',data.totalUsers,Users],['Students',data.students,Users],['Faculty',data.faculty,Users],
+    ['Users',data.totalUsers,Users],['Students',data.students,Users],['Faculty',data.faculty,Users],['Admins',data.admins,Users],['Pending reviews',data.pendingReviews,ClipboardList],
     ['Assignments',data.experiments,BookOpen],['Active assignments',data.activeExperiments,BookOpen],
     ['Active attempts',data.activeSessions,Activity],['Submissions',data.submissions,ClipboardList],['Network services',data.experimentServers,Server]
   ]:[]
@@ -39,7 +39,7 @@ export function AdminServers() {
   const {data,loading,error,reload}=useRemote(adminServers)
   const [busy,setBusy]=useState(''),[failure,setFailure]=useState('')
   async function toggle(server){setBusy(server.id);setFailure('');try{await setServerStatus(server.id,server.status==='ACTIVE'?'INACTIVE':'ACTIVE');reload()}catch(e){setFailure(e.message)}finally{setBusy('')}}
-  return <><Header title="Network services" description="Real service ports and gateway heartbeats. Disabling a service prevents assignment execution." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/>{failure&&<p className="form-error" role="alert">{failure}</p>}<DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Host</th><th>Port</th><th>Protocol</th><th>Access</th><th>Heartbeat</th><th>Health</th><th></th></tr></thead><tbody>{data?.map(s=><tr key={s.id}><td>{s.name}</td><td>{s.address}</td><td>{s.port||'Pending'}</td><td>{s.supportedProtocols.join(', ')}</td><td><Status value={s.status}/></td><td>{s.lastHeartbeat?new Date(s.lastHeartbeat).toLocaleString():'Not received'}</td><td><Status value={s.lastHeartbeat&&Date.now()-Date.parse(s.lastHeartbeat)<90000?'ONLINE':'OFFLINE'}/></td><td><button disabled={busy===s.id} onClick={()=>toggle(s)}>{s.status==='ACTIVE'?'Disable':'Enable'}</button></td></tr>)}</tbody></table></div></DataState></>
+  return <><Header title="Network services" description="Real service ports and gateway heartbeats. Disabling a service prevents assignment execution." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/>{failure&&<p className="form-error" role="alert">{failure}</p>}<DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Host</th><th>Port</th><th>Protocol</th><th>Access</th><th>Heartbeat</th><th>Health</th><th>Active sessions</th><th></th></tr></thead><tbody>{data?.map(s=><tr key={s.id}><td>{s.name}</td><td>{s.address}</td><td>{s.port||'Pending'}</td><td>{s.supportedProtocols.join(', ')}</td><td><Status value={s.status}/></td><td>{s.lastHeartbeat?new Date(s.lastHeartbeat).toLocaleString():'Not received'}</td><td><Status value={s.health}/></td><td>{s.activeSessions}</td><td><button disabled={busy===s.id} onClick={()=>toggle(s)}>{s.status==='ACTIVE'?'Disable':'Enable'}</button></td></tr>)}</tbody></table></div></DataState></>
 }
 export function AdminAudit() {
   const {data,loading,error}=useRemote(adminAudit)

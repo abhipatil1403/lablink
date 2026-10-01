@@ -1,79 +1,195 @@
-# Setup
+# LabLink setup
 
 ## Prerequisites
 
-- Java 17
-- Node.js 20 or later
-- A Firebase project with Authentication and Cloud Firestore enabled
+- Java 17 or later.
+- Node.js 22 or later.
+- PostgreSQL 17 or later; the integration suite was also verified against PostgreSQL 18.
+- Three terminals for the API, gateway and frontend.
 
-## Firebase
+## 1. Create the application database
 
-1. In Firebase Authentication, enable **Email/Password** sign-in.
-2. Create a Cloud Firestore database in the Firebase project.
-3. Add a Web App in Firebase and copy its public configuration into `lablink-frontend/.env`, created from `.env.example`.
-4. In Firebase project settings, create a service account key and save it outside this repository.
-5. Follow the local backend configuration below to reference that external JSON file.
+Start your PostgreSQL service. Open `psql` with your existing PostgreSQL administrator account:
 
-To provision the first faculty or admin account, create the account through Firebase Authentication, then create or update `users/{uid}` in Firestore with its `name`, `email`, `role` (`FACULTY` or `ADMIN`), `status: ACTIVE`, and `createdAt`. This bootstrap action is intentionally outside the public registration flow.
-
-## Environment files
-
-Copy each example file to `.env` in the same service directory. The backend reads its `.env` on startup. Keep real values private.
-
-```cmd
-copy lablink-backend\.env.example lablink-backend\.env
-copy lablink-frontend\.env.example lablink-frontend\.env
-copy lablink-network-service\.env.example lablink-network-service\.env
+```powershell
+psql -U postgres -d postgres
 ```
 
-Edit `lablink-backend/.env` and use a Firebase JSON file outside the repository. Use forward slashes in the Windows path:
+At the psql prompt:
 
-```env
-PORT=8080
-FRONTEND_ORIGIN=http://localhost:5173
-GOOGLE_APPLICATION_CREDENTIALS=C:/LabLinkSecrets/firebase-service-account.json
-FIREBASE_SERVICE_ACCOUNT_JSON=
-FIREBASE_PROJECT_ID=your-firebase-project-id
-TCP_HOST=127.0.0.1
-TCP_PORT=9001
-NETWORK_SERVICE_URL=http://localhost:3001
-GATEWAY_SHARED_SECRET=replace-with-a-long-random-value
+```sql
+CREATE USER lablink_app WITH LOGIN;
+\password lablink_app
+CREATE DATABASE lablink OWNER lablink_app;
+\q
 ```
 
-The backend and WebSocket gateway read their local `.env` files at startup. Leave `FIREBASE_SERVICE_ACCOUNT_JSON` empty locally; it is only for a Render secret environment value. Copy the same `GATEWAY_SHARED_SECRET` into `lablink-network-service/.env`. The backend accepts Vite from `FRONTEND_ORIGIN=http://localhost:5173`; leave that value unless the frontend uses a different origin.
+The password command prompts securely. Keep the password for the backend environment file. If this user/database already exists, reuse it.
 
-## Start the services
+## 2. Configure environment files
 
-Install Node dependencies once in each Node service, then open four Command Prompt windows from the repository root:
+From the repository root, copy examples **only when the corresponding .env does not already exist**:
 
-```cmd
-:: Terminal 1 - TCP experiment server
-cd lablink-tcp-server
-npm install
-npm start
+```powershell
+if (!(Test-Path lablink-backend/.env)) { Copy-Item lablink-backend/.env.example lablink-backend/.env }
+if (!(Test-Path lablink-network-service/.env)) { Copy-Item lablink-network-service/.env.example lablink-network-service/.env }
+if (!(Test-Path lablink-frontend/.env)) { Copy-Item lablink-frontend/.env.example lablink-frontend/.env }
+```
 
-:: Terminal 2 - Spring Boot API
+For an existing installation, update its files to the variables below. Remove obsolete authentication provider configuration. Backend .env files use Java properties syntax: one unquoted value per line.
+
+### Backend: lablink-backend/.env
+
+| Variable | Local value |
+| --- | --- |
+| PORT | 8080 |
+| DATABASE_URL | jdbc:postgresql://localhost:5432/lablink |
+| DATABASE_USERNAME | lablink_app |
+| DATABASE_PASSWORD | Password chosen with psql |
+| JWT_SECRET | Independently generated random secret, at least 32 bytes |
+| INITIAL_ADMIN_EMAIL | Your initial administrator email |
+| INITIAL_ADMIN_PASSWORD | Your initial administrator password, 12–72 characters |
+| CORS_ALLOWED_ORIGINS | http://localhost:5173 |
+| NETWORK_SERVICE_URL | http://localhost:3001 |
+| GATEWAY_SHARED_SECRET | Another random secret, at least 32 characters |
+
+Generate a secret with this command; run it separately for JWT and gateway secrets:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Bootstrap creates an admin only when none exists. Registration always creates students. After the first successful boot, remove INITIAL_ADMIN_PASSWORD from your local/hosting configuration. Faculty are created by that admin through **Users → Create Faculty**.
+
+### Network gateway: lablink-network-service/.env
+
+| Variable | Local value |
+| --- | --- |
+| WS_PORT | 3001 |
+| API_BASE_URL | http://localhost:8080 |
+| CORS_ALLOWED_ORIGINS | http://localhost:5173 |
+| GATEWAY_SHARED_SECRET | Exactly the same gateway secret as the backend |
+
+FRONTEND_ORIGIN remains a compatibility fallback on both services. CORS_ALLOWED_ORIGINS takes priority and accepts comma-separated exact origins. Do not add a trailing slash.
+
+### Frontend: lablink-frontend/.env
+
+```dotenv
+VITE_API_BASE_URL=http://localhost:8080
+VITE_NETWORK_WS_URL=ws://localhost:3001/ws
+```
+
+These two frontend variables are public URLs. Restart Vite after changing them.
+
+## 3. Start the backend
+
+In terminal 1:
+
+```powershell
 cd lablink-backend
 .\mvnw.cmd spring-boot:run
+```
 
-:: Terminal 3 - WebSocket gateway
+Running .\mvnw.cmd alone fails because Maven requires a goal. Flyway applies migrations; Hibernate validates the resulting schema.
+
+Health URL: http://localhost:8080/api/health.
+
+## 4. Start all network services
+
+In terminal 2:
+
+```powershell
 cd lablink-network-service
-npm install
+npm ci
 npm start
+```
 
-:: Terminal 4 - React frontend
+The gateway starts chat/file/search TCP servers, a UDP telemetry server, a DNS resolver, an HTTP student API and monitoring endpoints. Their ports are assigned automatically on loopback. No separate TCP or UDP process is needed.
+
+Health URL: http://localhost:3001/health. Public gateway URL: ws://localhost:3001/ws.
+
+## 5. Start React
+
+In terminal 3:
+
+```powershell
 cd lablink-frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`. If the browser reports a CORS preflight error after updating the code, stop and restart the Spring Boot command so it loads the current CORS filter.
+Open http://localhost:5173. Log in with the bootstrap admin; create faculty. Students register through the public registration page.
 
-## Render and Vercel deployment
+## Ports
 
-1. In Render, create a Blueprint from this repository's `render.yaml`. It creates the API and WebSocket gateway as web services plus a private TCP service.
-2. When Render prompts for variables, provide `FIREBASE_PROJECT_ID`, the complete service-account JSON in `FIREBASE_SERVICE_ACCOUNT_JSON`, and the same final Vercel origin for `FRONTEND_ORIGIN` on both public Render services. Do not add the JSON to Git.
-3. In Vercel, import this repository and set the project **Root Directory** to `lablink-frontend`. Vercel uses `vercel.json` to route direct browser visits back to the React app.
-4. Set these Vercel production environment variables from your Firebase Web App configuration: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, and `VITE_FIREBASE_APP_ID`.
-5. Set `VITE_API_BASE_URL=https://lablink-api.onrender.com` and `VITE_NETWORK_WS_URL=wss://lablink-network-service.onrender.com/ws`, using the actual Render service URLs if Render assigns different names.
-6. Redeploy the Vercel project after changing its build-time variables. Copy its final `https://...vercel.app` URL into both Render `FRONTEND_ORIGIN` variables, then redeploy the API and gateway.
+| Component | Port |
+| --- | --- |
+| PostgreSQL | 5432 |
+| Spring Boot API | 8080 |
+| WebSocket gateway and health HTTP | 3001 |
+| Vite frontend | 5173 |
+| Assignment TCP/UDP/DNS/HTTP servers | Assigned loopback ports, visible to admin |
+| Disposable integration PostgreSQL | 55432 by default |
+| Browser integration frontend | 5175 |
+
+Stop the old application processes before restarting the updated application. If Vite chooses a different port, add its exact origin to both backend and gateway CORS settings.
+
+## Render backend and gateway
+
+Use the **existing Git repository** as the source. Select a PostgreSQL provider/database first; render.yaml deliberately does not provision a billable database.
+
+### Backend web service
+
+- Root directory: lablink-backend.
+- Runtime: **Docker**.
+- Dockerfile: Dockerfile in that directory.
+- Start command: supplied by Dockerfile (`java -jar app.jar`). A Docker Command override is unnecessary.
+- Health check: /api/health.
+- DATABASE_URL: provider PostgreSQL URI (`postgresql://...`) or a JDBC URL.
+- The backend extracts credentials from a provider URI. For JDBC URLs, set DATABASE_USERNAME and DATABASE_PASSWORD separately.
+- JWT_SECRET and GATEWAY_SHARED_SECRET: independent generated secret values.
+- INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD: bootstrap configuration as above.
+- CORS_ALLOWED_ORIGINS: final Vercel origin.
+- NETWORK_SERVICE_URL: actual gateway HTTPS URL.
+
+This configuration follows [Render's Docker deployment documentation](https://render.com/docs/docker). The database URI format is documented in [Render's Blueprint reference](https://render.com/docs/blueprint-spec).
+
+### Network gateway web service
+
+- Root directory: lablink-network-service.
+- Runtime: Node.
+- Build command: npm ci.
+- Start command: npm start.
+- Health check: /health.
+- NODE_VERSION: 22.
+- API_BASE_URL: actual backend HTTPS URL.
+- GATEWAY_SHARED_SECRET: same value as backend.
+- CORS_ALLOWED_ORIGINS: same final Vercel origin.
+
+Render supplies PORT automatically; the gateway binds 0.0.0.0 and uses it. All raw assignment sockets stay inside the gateway process on loopback, so a separate private TCP deployment is unnecessary. Public WebSockets use `wss://<actual-gateway-host>/ws`, as described in [Render's WebSocket documentation](https://render.com/docs/websocket).
+
+Free web services can sleep after inactivity and require a cold start; see [Render's free service limits](https://render.com/docs/free). Inspect the selected hosting/database plan before creating resources.
+
+## Vercel frontend
+
+- Import the same Git repository.
+- Root directory: lablink-frontend.
+- Framework preset: Vite.
+- Install command: npm ci.
+- Build command: npm run build.
+- Output directory: dist.
+- VITE_API_BASE_URL: actual Render backend HTTPS URL.
+- VITE_NETWORK_WS_URL: actual gateway WSS URL ending in /ws.
+
+Redeploy after changing frontend variables because Vite embeds them during the build. vercel.json handles browser route refreshes. See [Vercel's Vite documentation](https://vercel.com/docs/frameworks/frontend/vite).
+
+## Troubleshooting
+
+- **Database connection refused:** start PostgreSQL and check DATABASE_URL/credentials.
+- **JWT_SECRET/gateway secret error:** fill both required secrets before starting services.
+- **401:** log in again; logout and account suspension revoke existing tokens.
+- **403:** check the user's database role or attempt ownership.
+- **CORS error:** match the exact browser origin in both services, then restart them.
+- **WebSocket failed:** check the gateway /health endpoint, origin and WS/WSS URL.
+- **Run failed:** inspect the stored test error and network transcript; follow each assignment's return contract.
+- **Stale RUNNING attempt after a gateway crash:** the backend recovers it after its ten-minute execution lease expires; reconnect and retry.

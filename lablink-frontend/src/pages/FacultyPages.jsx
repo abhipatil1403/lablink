@@ -10,7 +10,7 @@ import {DataState,Header,Status,WorkEvidence} from './Common'
 export function FacultyDashboard() {
   const {data,loading,error}=useRemote(facultyDashboard)
   const metrics=data?[
-    ['Assignments',data.totalExperiments,BookOpen],['Active assignments',data.activeExperiments,BookOpen],
+    ['Assignments',data.totalExperiments,BookOpen],['Active assignments',data.activeExperiments,BookOpen],['Active students',data.activeStudents,Users],
     ['Active attempts',data.activeSessions,Users],['Pending reviews',data.pendingReviews,Clock3],['Submissions',data.totalSubmissions,ClipboardCheck]
   ]:[]
   return <><Header eyebrow="FACULTY DASHBOARD" title="Laboratory overview" description="Monitor student work and review networking solutions."/><DataState loading={loading} error={error}><div className="metric-grid faculty-metrics">{metrics.map(([label,value,Icon])=><article className="metric-card" key={label}><span className="metric-icon"><Icon size={22}/></span><strong>{value}</strong><span>{label}</span></article>)}</div><div className="section-heading"><h2>Pending reviews</h2><Link to="/faculty/submissions">All submissions <ArrowRight size={16}/></Link></div><SubmissionsTable data={data?.pendingSubmissions}/><div className="section-heading"><h2>Recent attempts</h2></div><AttemptsTable data={data?.recentSessions}/></DataState></>

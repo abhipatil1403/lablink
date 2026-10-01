@@ -22,7 +22,9 @@ public class FacultyController {
             "activeSessions", attempts.stream().filter(a -> "RUNNING".equals(a.status)).count(),
             "totalSubmissions", submissions.size(), "pendingReviews", submissions.stream().filter(s -> "SUBMITTED".equals(s.status)).count(),
             "recentSessions", attempts.stream().limit(10).map(store::attempt).toList(),
-            "pendingSubmissions", submissions.stream().filter(s -> "SUBMITTED".equals(s.status)).limit(10).map(store::submission).toList());
+            "pendingSubmissions", submissions.stream().filter(s -> "SUBMITTED".equals(s.status)).limit(10).map(store::submission).toList(),
+            "activeStudents", users.findAll().stream().filter(u -> "STUDENT".equals(u.getRole()) && "ACTIVE".equals(u.getStatus())).count(),
+            "completedSubmissions", submissions.stream().filter(s -> "REVIEWED".equals(s.status)).count());
     }
     @GetMapping("/students") public List<UserEntity> students() {
         return users.findAll().stream().filter(u -> "STUDENT".equals(u.getRole())).toList();

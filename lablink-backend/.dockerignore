@@ -1,0 +1,7 @@
+.env
+.env.*
+target
+*.log
+*.json
+.mvn
+mvnw*

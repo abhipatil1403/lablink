@@ -1,63 +1,46 @@
 services:
   - type: web
     name: lablink-api
-    runtime: java
+    runtime: docker
     region: singapore
+    plan: free
     rootDir: lablink-backend
-    buildCommand: ./mvnw -q package
-    startCommand: java -jar target/lablink-backend-0.1.0.jar
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     envVars:
-      - key: FIREBASE_PROJECT_ID
+      - key: DATABASE_URL
         sync: false
-      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+      - key: JWT_SECRET
+        generateValue: true
+      - key: INITIAL_ADMIN_EMAIL
         sync: false
-      - key: FRONTEND_ORIGIN
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
         sync: false
       - key: GATEWAY_SHARED_SECRET
         generateValue: true
-      - key: TCP_HOST
-        value: lablink-tcp-server
-      - key: TCP_PORT
-        value: "9001"
       - key: NETWORK_SERVICE_URL
-        value: https://lablink-network-service.onrender.com
-
-  - type: pserv
-    name: lablink-tcp-server
-    runtime: node
-    region: singapore
-    rootDir: lablink-tcp-server
-    buildCommand: npm install
-    startCommand: npm start
-    envVars:
-      - key: TCP_HOST
-        value: 0.0.0.0
-      - key: TCP_PORT
-        value: "9001"
+        sync: false
 
   - type: web
     name: lablink-network-service
     runtime: node
     region: singapore
+    plan: free
     rootDir: lablink-network-service
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /health
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: API_BASE_URL
-        value: https://lablink-api.onrender.com
+        sync: false
       - key: GATEWAY_SHARED_SECRET
         fromService:
           name: lablink-api
           type: web
           envVarKey: GATEWAY_SHARED_SECRET
-      - key: TCP_HOST
-        fromService:
-          name: lablink-tcp-server
-          type: pserv
-          property: host
-      - key: TCP_PORT
-        value: "9001"
-      - key: FRONTEND_ORIGIN
+      - key: CORS_ALLOWED_ORIGINS
         sync: false

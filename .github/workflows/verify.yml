@@ -1,0 +1,66 @@
+name: Verify LabLink
+on:
+  push:
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: lablink_test
+          POSTGRES_DB: lablink_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lablink_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: jdbc:postgresql://127.0.0.1:5432/lablink_test
+      TEST_DATABASE_USERNAME: lablink_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            lablink-frontend/package-lock.json
+            lablink-network-service/package-lock.json
+      - name: PostgreSQL API integration tests and backend package
+        working-directory: lablink-backend
+        run: bash mvnw -B clean verify
+      - name: Real network execution tests
+        working-directory: lablink-network-service
+        run: |
+          npm ci
+          npm test
+      - name: Frontend lint and production build
+        working-directory: lablink-frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+          npx playwright install --with-deps chromium
+      - name: Seven assignments and browser workflows
+        working-directory: lablink-network-service
+        env:
+          LABLINK_UI_SMOKE: "1"
+        run: npm run test:full-stack
+      - name: Render backend container build
+        run: docker build -t lablink-api:verification ./lablink-backend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-artifacts
+          path: |
+            lablink-backend/target/surefire-reports
+            lablink-backend/target/e2e.log
+            lablink-frontend/target/ui

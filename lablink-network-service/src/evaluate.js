@@ -3,7 +3,12 @@ import { isDeepStrictEqual } from 'node:util'
 
 /** Each verdict requires observed network I/O as well as the student's computed result. */
 export function evaluate(type, input, run, documents, configuration = {}) {
-  if (run.error) return {passed:false,output:run.error}
+  try { return verdict(type,input,run,documents,configuration) }
+  catch(error) { return {passed:false,status:'ERROR',output:'Invalid solution result: '+error.message} }
+}
+
+function verdict(type, input, run, documents, configuration) {
+  if (run.error) return {passed:false,status:'ERROR',output:run.error}
   const value = run.value, events = run.network || []
   const seen = (op, predicate = () => true) => events.some(e => e.op === op && predicate(e))
   const equal = isDeepStrictEqual
@@ -70,5 +75,5 @@ export function evaluate(type, input, run, documents, configuration = {}) {
       value.content===documents[input.select] && value.saved===true && run.files[input.select]===documents[input.select] &&
       seen('tcp.send',e=>e.args[1]==='GET '+input.select)
   }
-  return {passed,output:passed?'Expected behavior verified against actual network traffic.':'The returned result or recorded network behavior did not meet the assignment contract.'}
+  return {passed,status:passed?'PASSED':'FAILED',output:passed?'Expected behavior verified against actual network traffic.':'The returned result or recorded network behavior did not meet the assignment contract.'}
 }

@@ -55,6 +55,8 @@ public final class Model {
         public Instant startedAt = Instant.now();
         public Instant endedAt;
         @Version public long version;
+        public Instant executionStartedAt;
+        @JdbcTypeCode(SqlTypes.JSON) public List<Map<String, Object>> evaluationPlan = new ArrayList<>();
     }
     @Entity(name = "Submission") @Table(name = "submissions")
     public static class Submission {
@@ -79,6 +81,9 @@ public final class Model {
         @ManyToOne @JoinColumn(name = "submission_id") public Submission submission;
         @ManyToOne(optional = false) @JoinColumn(name = "test_case_id") public TestCase testCase;
         public boolean passed;
+        public String status;
+        public String evaluatedName;
+        public int evaluatedWeight;
         @Column(columnDefinition = "text") public String output;
         public Instant createdAt = Instant.now();
     }

@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @SpringBootTest(properties = {
     "spring.config.import=",
     "spring.datasource.url=${TEST_DATABASE_URL:jdbc:postgresql://127.0.0.1:55432/lablink_test}",
-    "spring.datasource.username=${TEST_DATABASE_USERNAME:lablink_test}", "spring.datasource.password=",
+    "spring.datasource.username=${TEST_DATABASE_USERNAME:lablink_test}", "spring.datasource.password=${TEST_DATABASE_PASSWORD:}",
     "JWT_SECRET=integration-tests-only-not-a-production-secret-1234",
     "lablink.gateway-key=integration-gateway-only-secret-123456789",
     "INITIAL_ADMIN_EMAIL=", "INITIAL_ADMIN_PASSWORD=",
@@ -29,6 +29,8 @@ class SqlWorkflowTest {
     @Autowired UserJpaRepository users;
     @Autowired PasswordEncoder passwords;
     @Autowired JwtService jwt;
+    @Autowired AttemptRecovery recovery;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate sql;
     String student, other, faculty, admin;
     String studentId;
     static final String KEY = "integration-gateway-only-secret-123456789";
@@ -97,10 +99,17 @@ class SqlWorkflowTest {
         mvc.perform(get(path + "/validate").header("Authorization", "Bearer " + student).header("X-LabLink-Gateway-Key", "bad"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
         request("POST", path + "/begin", student, Map.of("solution", "function solve(input) {return input}"), 200);
+        var firstTest = config.get("evaluationTests").get(0);
+        String originalName = request("GET", "/api/faculty/assignments/" + id + "/tests", faculty, null, 200).findValues("name").get(0).asText();
+        request("PUT", "/api/faculty/assignments/" + id + "/tests/" + firstTest.get("id").asText(), faculty,
+            Map.of("name", "Edited " + UUID.randomUUID(), "weight", 11, "enabled", true,
+                "configuration", firstTest.get("configuration")), 200);
         request("POST", path + "/complete", student, Map.of("mode", "test", "output", "Execution output", "networkLog", "Actual TCP records", "results", reports), 200);
         var submission = request("POST", "/api/sessions/" + attempt.get("id").asText() + "/submit", student, null, 201);
         assertEquals(passed * 100.0 / total, submission.get("automatedScore").asDouble(), 0.01);
         assertEquals(reports.size(), submission.get("testResults").size());
+        var frozen = submission.get("testResults").findValues("name");
+        assertTrue(frozen.stream().anyMatch(n -> originalName.equals(n.asText())), "Historical test names must be preserved");
         var sid = submission.get("id").asText();
         request("GET", "/api/submissions/" + sid, other, null, 403);
         request("PATCH", "/api/faculty/submissions/" + sid + "/review", student, Map.of("grade", 80, "feedback", "Good"), 403);
@@ -130,5 +139,17 @@ class SqlWorkflowTest {
         assertEquals(200, response.getStatus());
         assertEquals("http://localhost:5173", response.getHeader("Access-Control-Allow-Origin"));
         request("GET", "/api/assignments/00000000-0000-4000-8000-999999999999", student, null, 404);
+        request("GET", "/api/assignments/not-a-uuid", student, null, 400);
+        request("GET", "/api/no-such-endpoint", student, null, 404);
+    }
+    @Test void crashedExecutionsCanBeRecoveredAndRetried() throws Exception {
+        var attempt = request("POST", "/api/sessions", student,
+            Map.of("assignmentId", "00000000-0000-4000-8000-000000000001"), 201);
+        String id = attempt.get("id").asText();
+        request("POST", "/api/internal/sessions/" + id + "/begin", student, Map.of("solution", "function solve(){return {}}"), 200);
+        sql.update("UPDATE assignment_attempts SET execution_started_at = now() - interval '11 minutes' WHERE id = ?", UUID.fromString(id));
+        recovery.recover();
+        assertEquals("FAILED", request("GET", "/api/sessions/" + id, student, null, 200).get("status").asText());
+        request("POST", "/api/internal/sessions/" + id + "/begin", student, Map.of("solution", "function solve(){return {}}"), 200);
     }
 }

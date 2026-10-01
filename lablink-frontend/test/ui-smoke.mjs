@@ -43,10 +43,33 @@ try {
     await page.goto(base+'/assignment/'+assignment.id)
     await page.getByRole('button',{name:'Start assignment',exact:true}).click()
     await expect(page.getByLabel('Solution code')).toBeVisible({timeout:15000})
+    if(!firstSubmission) {
+      await page.getByLabel('Solution code').fill('function solve(){throw new Error("Intentional execution failure")}')
+      await expect(page.getByRole('button',{name:'Test all',exact:true})).toBeEnabled({timeout:10000})
+      await page.getByRole('button',{name:'Test all',exact:true}).click()
+      await expect(page.getByRole('heading',{name:'Automated evaluation · 0 / 100',exact:true})).toBeVisible({timeout:90000})
+      await expect(page.getByText('ERROR',{exact:true})).toHaveCount(3)
+    }
     await page.getByLabel('Solution code').fill(solutions[assignment.assignmentType])
+    if(!firstSubmission) {
+      await expect(page.getByRole('button',{name:'Submit assignment',exact:true})).toBeDisabled()
+      await page.getByRole('button',{name:'Run',exact:true}).click()
+      await expect(page.getByRole('button',{name:'Test all',exact:true})).toBeEnabled({timeout:20000})
+      await expect(page.getByRole('button',{name:'Submit assignment',exact:true})).toBeDisabled()
+    }
     await expect(page.getByRole('button',{name:'Test all',exact:true})).toBeEnabled({timeout:10000})
     await page.getByRole('button',{name:'Test all',exact:true}).click()
     await expect(page.getByRole('heading',{name:'Automated evaluation · 100 / 100',exact:true})).toBeVisible({timeout:90000})
+    if(assignment.assignmentType==='file-transfer') {
+      const file=page.waitForEvent('download')
+      await page.getByRole('button',{name:'Download welcome.txt',exact:true}).click()
+      const download=await file
+      assert.equal(download.suggestedFilename(),'welcome.txt')
+      const stream=await download.createReadStream()
+      let contents=''
+      for await(const chunk of stream)contents+=chunk.toString()
+      assert.match(contents,/Welcome to the LabLink/)
+    }
     if(!firstSubmission){
       await page.screenshot({path:artifacts+'/assignment-workspace.png',fullPage:true})
       await page.setViewportSize({width:390,height:844})

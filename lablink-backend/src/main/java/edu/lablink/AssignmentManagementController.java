@@ -20,7 +20,7 @@ public class AssignmentManagementController {
                 @NotBlank @Size(max = 10000) String objective, @NotNull @Size(min = 1, max = 30) List<String> instructions,
                 @NotBlank @Size(max = 10000) String expectedBehavior, @NotNull @Size(min = 1, max = 30) List<String> requirements,
                 @NotNull @Size(min = 1, max = 30) List<String> constraints, @NotNull @Size(min = 1, max = 30) List<String> networkingConcepts,
-                @Pattern(regexp = "EASY|MEDIUM|HARD") String difficulty, Instant deadline) {}
+                @NotNull @Pattern(regexp = "EASY|MEDIUM|HARD") String difficulty, Instant deadline) {}
     @PutMapping("/{id}") public Map<String, Object> update(@PathVariable UUID id, @Valid @RequestBody Edit body) {
         var a = store.get(Assignment.class, id); a.title = body.title(); a.description = body.description();
         a.requirements = body.requirements(); a.concepts = body.networkingConcepts(); a.difficulty = body.difficulty();

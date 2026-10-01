@@ -2,8 +2,8 @@ import { parentPort, workerData } from 'node:worker_threads'
 import { newAsyncContext } from 'quickjs-emscripten'
 import { capabilities } from './capabilities.js'
 
-const { source, input, endpoints, deadlineMs = 15000 } = workerData
-const env = capabilities(endpoints)
+const { source, input, endpoints, directory, deadlineMs = 15000 } = workerData
+const env = capabilities(endpoints, directory)
 const output = []
 let context
 try {
@@ -20,8 +20,9 @@ try {
   })
   context.setProp(context.global,'__call',bridge); bridge.dispose()
   const print = context.newFunction('__print', value => {
-    if (output.join('\n').length > 16000) throw new Error('Output limit exceeded')
-    output.push(context.getString(value))
+    const text=context.getString(value)
+    if (output.join('\n').length+text.length > 16000) throw new Error('Output limit exceeded')
+    output.push(text)
     return context.undefined
   })
   context.setProp(context.global,'__print',print); print.dispose()
