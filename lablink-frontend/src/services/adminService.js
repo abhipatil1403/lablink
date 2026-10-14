@@ -1,6 +1,7 @@
 import {apiRequest} from './api'
 export const adminDashboard=()=>apiRequest('/api/admin/dashboard')
 export const adminUsers=query=>apiRequest('/api/admin/users'+(query?'?'+query:''))
+export const adminUser=id=>apiRequest('/api/admin/users/'+id)
 export const setUserStatus=(id,status)=>apiRequest('/api/admin/users/'+id+'/status',{method:'PATCH',body:JSON.stringify({status})})
 export const createFaculty=body=>apiRequest('/api/admin/faculty',{method:'POST',body:JSON.stringify(body)})
 export const adminExperiments=()=>apiRequest('/api/admin/assignments')

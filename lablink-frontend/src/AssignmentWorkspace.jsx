@@ -73,6 +73,7 @@ export function AssignmentWorkspace({session}) {
     socket.current.send(JSON.stringify({type:'execute',mode,code:generated}))
   }
   async function submit() {
+    if(!window.confirm('Submit this evaluated work? Your code and results will be frozen for faculty review.'))return
     setSubmitting(true);setError('')
     try{const result=await submitSession(session.id);sessionStorage.removeItem(draftKey);sessionStorage.removeItem('lablink-notes-'+session.id);navigate('/student/submissions/'+result.id)}
     catch(failure){setError(failure.message)}finally{setSubmitting(false)}

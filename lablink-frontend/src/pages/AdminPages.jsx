@@ -1,7 +1,8 @@
 import {useState} from 'react'
+import {Link,useParams} from 'react-router-dom'
 import {Activity,BookOpen,ClipboardList,Server,Users} from 'lucide-react'
 import {useRemote} from '../hooks/useRemote'
-import {adminAudit,adminDashboard,adminServers,adminUsers,createFaculty,setServerStatus,setUserStatus} from '../services/adminService'
+import {adminAudit,adminDashboard,adminServers,adminUser,adminUsers,createFaculty,setServerStatus,setUserStatus} from '../services/adminService'
 import {DataState,Header,Status} from './Common'
 
 export function AdminDashboard() {
@@ -22,6 +23,7 @@ export function AdminUsers() {
   const {data,loading,error,reload}=useRemote(adminUsers,query)
   const [form,setForm]=useState(null),[failure,setFailure]=useState(''),[busy,setBusy]=useState('')
   async function status(id,value){
+    if(value!=='ACTIVE'&&!window.confirm('Set this account to '+value+'? Existing login sessions will be revoked.'))return
     setBusy(id);setFailure('')
     try{await setUserStatus(id,value);reload()}catch(e){setFailure(e.message)}finally{setBusy('')}
   }
@@ -33,12 +35,25 @@ export function AdminUsers() {
     {form&&<form className="content-card experiment-form" onSubmit={create}><h2>Create faculty account</h2><label>Full name<input required maxLength={120} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>Email<input type="email" required value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></label><label>Temporary password<input type="password" autoComplete="new-password" required minLength={8} maxLength={72} value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/></label><div className="terminal-actions"><button className="primary-button" disabled={!!busy}>Create account</button><button type="button" className="secondary-button" onClick={()=>setForm(null)}>Cancel</button></div></form>}
     {failure&&<p className="form-error" role="alert">{failure}</p>}
     <form className="filter-bar" onSubmit={e=>{e.preventDefault();setQuery(new URLSearchParams(Object.entries(filters).filter(([,v])=>v)).toString())}}><input placeholder="Search name or email" aria-label="Search users" value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})}/><select aria-label="Role filter" value={filters.role} onChange={e=>setFilters({...filters,role:e.target.value})}><option value="">All roles</option>{['STUDENT','FACULTY','ADMIN'].map(r=><option key={r}>{r}</option>)}</select><select aria-label="User status filter" value={filters.status} onChange={e=>setFilters({...filters,status:e.target.value})}><option value="">All statuses</option>{['ACTIVE','INACTIVE','SUSPENDED'].map(s=><option key={s}>{s}</option>)}</select><button className="secondary-button">Search</button></form>
-    <DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Set access</th></tr></thead><tbody>{data?.map(u=><tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{u.role}</td><td><Status value={u.status}/></td><td>{new Date(u.createdAt).toLocaleDateString()}</td><td><select aria-label={'Status for '+u.name} value={u.status} disabled={busy===u.id||u.role==='ADMIN'} onChange={e=>status(u.id,e.target.value)}>{['ACTIVE','INACTIVE','SUSPENDED'].map(s=><option key={s}>{s}</option>)}</select></td></tr>)}</tbody></table></div></DataState></>
+    <DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Set access</th></tr></thead><tbody>{data?.map(u=><tr key={u.id}><td><Link to={'/admin/users/'+u.id}>{u.name}</Link></td><td>{u.email}</td><td>{u.role}</td><td><Status value={u.status}/></td><td>{new Date(u.createdAt).toLocaleDateString()}</td><td><select aria-label={'Status for '+u.name} value={u.status} disabled={busy===u.id||u.role==='ADMIN'} onChange={e=>status(u.id,e.target.value)}>{['ACTIVE','INACTIVE','SUSPENDED'].map(s=><option key={s}>{s}</option>)}</select></td></tr>)}</tbody></table></div></DataState></>
+}
+export function AdminUserDetails() {
+  const {id}=useParams()
+  const {data,loading,error}=useRemote(adminUser,id)
+  const dates=[['Created',data?.createdAt],['Updated',data?.updatedAt],['Last login',data?.lastLoginAt]]
+  return <><Link className="back-link" to="/admin/users">Back to users</Link><Header title="User details" description="Account identity and activity from PostgreSQL."/><DataState loading={loading} error={error}>{data&&<section className="content-card profile-card"><dl>
+    {[['Name',data.name],['Email',data.email],['Role',data.role],['Account ID',data.id]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+    <div><dt>Status</dt><dd><Status value={data.status}/></dd></div>
+    {dates.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value?new Date(value).toLocaleString():'Never'}</dd></div>)}
+  </dl></section>}</DataState></>
 }
 export function AdminServers() {
   const {data,loading,error,reload}=useRemote(adminServers)
   const [busy,setBusy]=useState(''),[failure,setFailure]=useState('')
-  async function toggle(server){setBusy(server.id);setFailure('');try{await setServerStatus(server.id,server.status==='ACTIVE'?'INACTIVE':'ACTIVE');reload()}catch(e){setFailure(e.message)}finally{setBusy('')}}
+  async function toggle(server){
+    if(server.status==='ACTIVE'&&!window.confirm('Disable '+server.name+'? Students will be unable to start runs for this service.'))return
+    setBusy(server.id);setFailure('');try{await setServerStatus(server.id,server.status==='ACTIVE'?'INACTIVE':'ACTIVE');reload()}catch(e){setFailure(e.message)}finally{setBusy('')}
+  }
   return <><Header title="Network services" description="Real service ports and gateway heartbeats. Disabling a service prevents assignment execution." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/>{failure&&<p className="form-error" role="alert">{failure}</p>}<DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Host</th><th>Port</th><th>Protocol</th><th>Access</th><th>Heartbeat</th><th>Health</th><th>Active sessions</th><th></th></tr></thead><tbody>{data?.map(s=><tr key={s.id}><td>{s.name}</td><td>{s.address}</td><td>{s.port||'Pending'}</td><td>{s.supportedProtocols.join(', ')}</td><td><Status value={s.status}/></td><td>{s.lastHeartbeat?new Date(s.lastHeartbeat).toLocaleString():'Not received'}</td><td><Status value={s.health}/></td><td>{s.activeSessions}</td><td><button disabled={busy===s.id} onClick={()=>toggle(s)}>{s.status==='ACTIVE'?'Disable':'Enable'}</button></td></tr>)}</tbody></table></div></DataState></>
 }
 export function AdminAudit() {

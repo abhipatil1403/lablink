@@ -21,6 +21,7 @@ export function FacultyExperiments() {
   const {data,loading,error,reload}=useRemote(listExperiments)
   const [failure,setFailure]=useState(''),[busy,setBusy]=useState('')
   async function toggle(item) {
+    if(item.status==='ACTIVE'&&!window.confirm('Deactivate '+item.title+'? Students will be unable to start new attempts or runs.'))return
     setBusy(item.id);setFailure('')
     try{await setExperimentStatus(item.id,item.status==='ACTIVE'?'INACTIVE':'ACTIVE',role);reload()}catch(e){setFailure(e.message)}finally{setBusy('')}
   }

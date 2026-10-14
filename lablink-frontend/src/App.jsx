@@ -6,7 +6,7 @@ import {logout} from './services/authService'
 import {AppLayout,StudentLayout} from './StudentLayout'
 import {ExperimentCatalog,ExperimentDetails,SessionDetails,StudentAttempts,StudentDashboard,StudentProfile,SubmissionDetails,SubmissionHistory} from './pages/StudentPages'
 import {FacultyAttempt,FacultyDashboard,FacultyExperimentForm,FacultyExperiments,FacultyReview,FacultySessions,FacultyStudentDetails,FacultyStudents,FacultySubmissions} from './pages/FacultyPages'
-import {AdminAudit,AdminDashboard,AdminServers,AdminSystemStatus,AdminUsers} from './pages/AdminPages'
+import {AdminAudit,AdminDashboard,AdminServers,AdminSystemStatus,AdminUserDetails,AdminUsers} from './pages/AdminPages'
 import {BookOpen,ClipboardCheck,LayoutDashboard,Server,Users,Activity,UserRound} from 'lucide-react'
 
 const facultyLinks=[
@@ -76,6 +76,7 @@ export function App() {
       <Route path="/admin" element={<AdminDashboard/>}/>
       <Route path="/admin/dashboard" element={<Navigate to="/admin" replace/>}/>
       <Route path="/admin/users" element={<AdminUsers/>}/>
+      <Route path="/admin/users/:id" element={<AdminUserDetails/>}/>
       <Route path="/admin/assignments" element={<FacultyExperiments/>}/>
       <Route path="/admin/assignments/:id/edit" element={<FacultyExperimentForm/>}/>
       <Route path="/admin/experiments" element={<Navigate to="/admin/assignments" replace/>}/>

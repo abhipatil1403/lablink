@@ -7,10 +7,11 @@
 3. Create a faculty account from Users. Register a separate student account.
 4. As student, open the seven-card assignment catalog. Start an assignment and implement solve(input) using its protocol contract.
 5. Run a solution, inspect the real network transcript, then Test all. Incorrect code gets failed/error results; valid implementations earn their computed weighted score.
-6. Submit evaluated work. Inspect stored code, output, trace and test results in submission history.
+6. Submit evaluated work and accept the confirmation. Cancelling leaves the evaluated attempt editable. Inspect stored code, output, trace and test results in submission history.
 7. As faculty, open Students → student → attempt, or Submissions → Review. Enter a grade and feedback; review, return or reject.
 8. As student, view the actual faculty grade and feedback. Returned work can be revised in a new attempt.
-9. As admin, filter users, change access, enable/disable a service, inspect active sessions and audit history.
+9. As admin, filter users and open a user's name to inspect identity, status, creation/update times and last login. Change access, enable/disable a service, inspect active sessions and audit history.
+10. Check both Cancel and Confirm when suspending an account, disabling a service or deactivating an assignment. Cancelling must leave its stored status unchanged.
 
 ## Local checks
 
