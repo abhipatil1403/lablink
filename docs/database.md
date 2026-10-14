@@ -6,6 +6,7 @@ Flyway migrations are in lablink-backend/src/main/resources/db/migration.
 - V2: roles, seven assignment definitions, weighted tests, results, faculty reviews, services, network sessions and audit logs.
 - V3: evaluation snapshots and explicit PASSED/FAILED/ERROR outcomes.
 - V4: execution leases and recovery index.
+- V5: per-service protocol health, recorded separately from administrative access status.
 
 Applied migrations are immutable. Future schema changes require a new migration. Application startup uses ddl-auto=validate.
 
@@ -51,7 +52,7 @@ ORDER BY a.id, t.name;
 SELECT a.title, u.name, s.automated_score, s.faculty_grade, s.status
 FROM submissions s JOIN users u ON u.id = s.student_id
 JOIN assignments a ON a.id = s.assignment_id ORDER BY s.submitted_at DESC;
-SELECT name, service, port, last_heartbeat FROM network_servers;
+SELECT name, service, port, status, health_status, last_heartbeat FROM network_servers;
 ```
 
 Indexes support student attempts, assignment/student submissions, result/review lookup, audit chronology and running-attempt recovery. Password hashes and token revocation fields are excluded from API serialization.

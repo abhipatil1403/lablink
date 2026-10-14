@@ -77,7 +77,11 @@ The following require both a student JWT and X-LabLink-Gateway-Key:
 
 Result items contain testCaseId, passed, status and output. Every snapshotted enabled test must have exactly one result. The API computes the score and enforces attempt ownership/state.
 
-POST /api/internal/services/heartbeat requires the gateway key and its actual endpoint port map; no user JWT is needed. GET /api/health is public.
+POST /api/internal/services/heartbeat requires the gateway key, its actual endpoint port map and a health map with ONLINE/OFFLINE results for all seven services; no user JWT is needed. The gateway sends real protocol checks every 30 seconds. Admin service health becomes OFFLINE after 90 seconds without a heartbeat. GET /api/health is public.
+
+The gateway's public GET /health returns individual service results, the check timestamp and active runs. It returns 200/ONLINE when all checks pass and 503/DEGRADED when any check fails. Results are cached for at most five seconds and concurrent requests share one probe batch.
+
+The backend's public GET /api/health executes a PostgreSQL query and returns 503 if the database is unavailable.
 
 ## WebSocket
 

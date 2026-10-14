@@ -79,7 +79,9 @@ try {
   }
   const servers=await api('/api/admin/servers',admin)
   assert.equal(servers.length,7)
-  assert.ok(servers.every(server=>server.port>0&&server.lastHeartbeat))
+  assert.ok(servers.every(server=>server.port>0&&server.lastHeartbeat&&server.health==='ONLINE'))
+  assert.equal((await api('/api/admin/assignments',admin)).length,7)
+  assert.equal((await api('/api/faculty/assignments',faculty)).length,7)
   console.log('PASS admin faculty creation, seven SQL assignments, service heartbeats and grading workflow')
   if(process.env.LABLINK_UI_SMOKE==='1') {
     const ui=spawn(process.execPath,[fileURLToPath(new URL('../../lablink-frontend/test/ui-smoke.mjs',import.meta.url))],{

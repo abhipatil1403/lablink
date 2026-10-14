@@ -4,26 +4,39 @@ import { WebSocket, WebSocketServer } from 'ws'
 import { startServices } from './services.js'
 import { runSolution } from './runner.js'
 import { evaluate } from './evaluate.js'
+import { probeServices } from './health.js'
 
 export async function createNetworkServer({apiBaseUrl,gatewayKey,frontendOrigin}) {
   if (!gatewayKey || gatewayKey.length<32) throw new Error('GATEWAY_SHARED_SECRET requires at least 32 characters')
   const suite=await startServices()
   const origins=frontendOrigin.split(',').map(s=>s.trim())
   const busyAttempts=new Set()
+  let health, checkedAt=0, checking
+  function checkHealth() {
+    if (!checking && (!health || Date.now()-checkedAt>5000)) {
+      checking=probeServices(suite.endpoints).then(result=>{
+        health=result;checkedAt=Date.now();return result
+      }).finally(()=>{checking=undefined})
+    }
+    return checking || Promise.resolve(health)
+  }
   async function heartbeat() {
+    const health=await checkHealth()
     await fetch(apiBaseUrl+'/api/internal/services/heartbeat',{
       method:'POST',signal:AbortSignal.timeout(5000),
       headers:{'Content-Type':'application/json','X-LabLink-Gateway-Key':gatewayKey},
-      body:JSON.stringify({endpoints:suite.endpoints})
+      body:JSON.stringify({endpoints:suite.endpoints,health})
     }).catch(()=>{})
   }
   await heartbeat()
   const heartbeatTimer=setInterval(heartbeat,30000)
   heartbeatTimer.unref()
-  const server=http.createServer((request,response)=>{
+  const server=http.createServer(async (request,response)=>{
     if (request.url==='/health') {
-      response.writeHead(200,{'Content-Type':'application/json'})
-      response.end(JSON.stringify({status:'ONLINE',services:Object.keys(suite.endpoints).filter(s=>s!=='offline'),activeRuns:busyAttempts.size}))
+      const health=await checkHealth()
+      const online=Object.values(health).every(status=>status==='ONLINE')
+      response.writeHead(online?200:503,{'Content-Type':'application/json'})
+      response.end(JSON.stringify({status:online?'ONLINE':'DEGRADED',services:health,checkedAt:new Date(checkedAt).toISOString(),activeRuns:busyAttempts.size}))
     } else response.writeHead(404).end()
   })
   const wss=new WebSocketServer({noServer:true,maxPayload:40000})
@@ -34,7 +47,7 @@ export async function createNetworkServer({apiBaseUrl,gatewayKey,frontendOrigin}
     wss.handleUpgrade(request,socket,head,client=>wss.emit('connection',client))
   })
   wss.on('connection',ws=>{
-    let token,id,ready=false,busy=false
+    let token,id,ready=false,busy=false,authenticating=false
     const send=value=>{if(ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify(value))}
     const timer=setTimeout(()=>ws.close(1008,'Authentication timeout'),10000)
     async function api(suffix,body) {
@@ -50,12 +63,17 @@ export async function createNetworkServer({apiBaseUrl,gatewayKey,frontendOrigin}
     ws.on('message',async raw=>{
       let message
       try {message=JSON.parse(raw.toString())} catch {send({type:'error',message:'Invalid message'});return}
+      if (!message || typeof message!=='object' || Array.isArray(message)) {
+        send({type:'error',message:'Invalid message'});return
+      }
       if (!ready) {
+        if (authenticating) {send({type:'error',message:'Authentication is in progress'});return}
         if (message.type!=='authenticate' || typeof message.token!=='string' || message.token.length>4096 ||
             !/^[a-f0-9-]{36}$/i.test(message.sessionId)) {ws.close(1008,'Invalid authentication');return}
-        token=message.token;id=message.sessionId;clearTimeout(timer)
+        authenticating=true;token=message.token;id=message.sessionId
         try {await api('validate');ready=true;send({type:'status',status:'READY'})}
         catch(error) {send({type:'error',message:error.message});ws.close(1008,'Authentication failed')}
+        finally {clearTimeout(timer);authenticating=false}
         return
       }
       if (message.type!=='execute' || !['run','test'].includes(message.mode) || typeof message.code!=='string' ||
@@ -78,7 +96,7 @@ export async function createNetworkServer({apiBaseUrl,gatewayKey,frontendOrigin}
           output.push('Test '+test.id+'\n'+(run.output || '')+'\nResult: '+JSON.stringify(run.value || {})+'\n'+verdict.output)
           send({type:'testResult',testCaseId:test.id,...verdict})
         }
-        // PostgreSQL owns the score, using the current stored weights.
+        // PostgreSQL owns the score, using the captured test weights.
         const entries=[];let size=0
         for(const entry of network) {
           size+=JSON.stringify(entry).length+1

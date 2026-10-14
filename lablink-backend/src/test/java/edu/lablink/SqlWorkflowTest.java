@@ -152,4 +152,25 @@ class SqlWorkflowTest {
         assertEquals("FAILED", request("GET", "/api/sessions/" + id, student, null, 200).get("status").asText());
         request("POST", "/api/internal/sessions/" + id + "/begin", student, Map.of("solution", "function solve(){return {}}"), 200);
     }
+    @Test void managementCatalogsAndProtocolHealthAreAuthoritative() throws Exception {
+        assertEquals(7, request("GET", "/api/admin/assignments", admin, null, 200).size());
+        assertEquals(7, request("GET", "/api/faculty/assignments", faculty, null, 200).size());
+        request("GET", "/api/admin/assignments", faculty, null, 403);
+        request("GET", "/api/faculty/assignments", student, null, 403);
+        var endpoints = Map.of("chat", 19001, "file", 19002, "search", 19003, "udp", 19004,
+            "dns", 19005, "http", 19006, "offline", 19007);
+        var health = new HashMap<String, String>();
+        for (String service : List.of("chat", "file", "search", "udp", "dns", "http", "monitor")) health.put(service, "ONLINE");
+        health.put("dns", "OFFLINE");
+        String path = "/api/internal/services/heartbeat";
+        mvc.perform(post(path).header("X-LabLink-Gateway-Key", "incorrect").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("endpoints", endpoints, "health", health))))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        request("POST", path, null, Map.of("endpoints", endpoints), 400);
+        request("POST", path, null, Map.of("endpoints", endpoints, "health", health), 200);
+        var servers = request("GET", "/api/admin/servers", admin, null, 200);
+        for (var server : servers) assertEquals(health.get(server.get("service").asText()), server.get("health").asText());
+        sql.update("UPDATE network_servers SET last_heartbeat = now() - interval '2 minutes'");
+        for (var server : request("GET", "/api/admin/servers", admin, null, 200)) assertEquals("OFFLINE", server.get("health").asText());
+    }
 }

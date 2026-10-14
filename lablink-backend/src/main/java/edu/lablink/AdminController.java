@@ -47,7 +47,7 @@ public class AdminController {
         if ("ADMIN".equals(u.getRole())) throw new ApiException(HttpStatus.CONFLICT, "Administrator status is protected");
         u.setStatus(body.status()); store.audit("USER_STATUS", id, body.status()); return u;
     }
-    @GetMapping({"/assignments", "/experiments"}) public List<Map<String, Object>> assignments() {
+    @GetMapping("/experiments") public List<Map<String, Object>> assignments() {
         return store.all(Assignment.class, "Assignment").stream().map(store::assignment).toList();
     }
     @GetMapping("/servers") public List<Map<String, Object>> servers() {
@@ -56,7 +56,7 @@ public class AdminController {
             d.put("id", s.id); d.put("name", s.name); d.put("service", s.service); d.put("address", s.address);
             d.put("port", s.port); d.put("supportedProtocols", List.of(s.protocol)); d.put("status", s.status);
             d.put("lastHeartbeat", s.lastHeartbeat); d.put("activeSessions", store.activeSessions(s));
-            d.put("health", s.lastHeartbeat != null && s.lastHeartbeat.isAfter(Instant.now().minusSeconds(90)) ? "ONLINE" : "OFFLINE");
+            d.put("health", s.lastHeartbeat != null && s.lastHeartbeat.isAfter(Instant.now().minusSeconds(90)) ? s.healthStatus : "OFFLINE");
             return (Map<String, Object>) d;
         }).toList();
     }
@@ -85,7 +85,7 @@ public class AdminController {
             var client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
             var response = client.send(HttpRequest.newBuilder(URI.create(networkUrl + "/health")).timeout(Duration.ofSeconds(3)).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-            return response.statusCode() == 200 && response.body().contains("\"ONLINE\"") ? "ONLINE" : "OFFLINE";
+            return response.statusCode() == 200 ? "ONLINE" : response.statusCode() == 503 ? "DEGRADED" : "OFFLINE";
         } catch (Exception e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return "OFFLINE";

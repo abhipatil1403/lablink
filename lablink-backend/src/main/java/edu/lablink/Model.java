@@ -107,6 +107,7 @@ public final class Model {
         public String protocol;
         public String status = "ACTIVE";
         public Instant lastHeartbeat;
+        public String healthStatus = "UNKNOWN";
     }
     @Entity(name = "NetworkSession") @Table(name = "network_sessions")
     public static class NetworkSession {

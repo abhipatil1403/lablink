@@ -1,5 +1,27 @@
 # Architecture
 
+## Platform overview
+
+```mermaid
+flowchart TD
+  LabLink[LABLINK] --> Student[STUDENT]
+  LabLink --> Faculty[FACULTY]
+  LabLink --> Admin[ADMIN]
+  Student --> React[React Frontend]
+  Faculty --> React
+  Admin --> React
+  React -->|HTTPS REST / JWT| Spring[Spring Boot]
+  Spring --> PostgreSQL
+  Spring <-->|Authenticated execution records and health| Network[Node.js Network Service]
+  React -->|WebSocket / JWT| Network
+  Network --> TCP[TCP chat, file transfer and file search servers]
+  Network --> UDP[UDP telemetry server]
+  Network --> HTTP[HTTP API and monitoring targets]
+  Network --> DNS[Controlled DNS challenge]
+```
+
+## Execution flow
+
 ```mermaid
 flowchart LR
   Browser["React student/faculty/admin UI"] -->|JWT + HTTPS REST| API["Spring Boot"]
@@ -22,6 +44,8 @@ Spring Boot owns users, roles, assignment metadata, test cases, attempts, result
 The gateway validates JWT identity and ownership through Spring Boot before accepting code. Each run receives a snapshot of the enabled database test cases. It executes the student's source in independent workers, evaluates returned values against actual network traces, and sends trusted outcomes back to the API. The API calculates the score using the captured weights; browser clients cannot submit a score.
 
 All controlled services are started within the Node process and bind loopback ports. Browsers use WebSocket capabilities instead of raw TCP/UDP sockets.
+
+Health checks exchange real protocol messages: TCP chat handshakes, file transfers, file searches, UDP telemetry, HTTP student/monitoring requests and DNS lookups. The gateway reports each outcome to Spring Boot every 30 seconds. PostgreSQL stores those outcomes separately from the admin's enable/disable setting; a recent heartbeat alone does not establish service health. The deliberately broken DNS challenge record and offline monitoring target remain part of the assignment environment, while the resolver and live monitoring service are checked against their known working targets.
 
 ## Authentication and authorization
 

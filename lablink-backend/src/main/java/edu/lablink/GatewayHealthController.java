@@ -19,7 +19,8 @@ public class GatewayHealthController {
     public GatewayHealthController(LabStore store, @Value("${lablink.gateway-key}") String key) {
         this.store = store; this.key = key.getBytes(StandardCharsets.UTF_8);
     }
-    record Heartbeat(@NotNull @Size(min = 7, max = 8) Map<String, Integer> endpoints) {}
+    record Heartbeat(@NotNull @Size(min = 7, max = 8) Map<String, Integer> endpoints,
+                     @NotNull @Size(min = 7, max = 7) Map<String, String> health) {}
     @PostMapping("/heartbeat")
     public Map<String, Object> heartbeat(@RequestHeader("X-LabLink-Gateway-Key") String supplied,
                                        @Valid @RequestBody Heartbeat body) {
@@ -28,9 +29,10 @@ public class GatewayHealthController {
         for (Server server : store.all(Server.class, "NetworkServer")) {
             String endpoint = Set.of("monitor", "http").contains(server.service) ? "http" : server.service;
             Integer port = body.endpoints().get(endpoint);
-            if (port == null || port < 1 || port > 65535)
+            String health = body.health().get(server.service);
+            if (port == null || port < 1 || port > 65535 || !("ONLINE".equals(health) || "OFFLINE".equals(health)))
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid network endpoint");
-            server.port = port; server.lastHeartbeat = Instant.now();
+            server.port = port; server.lastHeartbeat = Instant.now(); server.healthStatus = health;
         }
         return Map.of("status", "RECORDED");
     }
