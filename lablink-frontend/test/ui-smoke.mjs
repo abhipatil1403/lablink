@@ -25,6 +25,11 @@ try {
   const artifacts=project+'target/ui'
   await mkdir(artifacts,{recursive:true})
   const email='ui-'+Date.now()+'@test.example'
+  // Exercise dashboard loading rather than assuming its heading means the catalog has arrived.
+  await page.route(api+'/api/assignments',async route=>{
+    await new Promise(resolve=>setTimeout(resolve,350))
+    await route.continue()
+  },{times:1})
   await page.goto(base+'/register')
   await page.getByLabel('Full name').fill('UI Student')
   await page.getByLabel('Email address').fill(email)
@@ -32,7 +37,7 @@ try {
   await page.getByLabel('Confirm password').fill(password)
   await page.getByRole('button',{name:'Create account',exact:true}).click()
   await expect(page.getByRole('heading',{name:'Welcome, UI'})).toBeVisible({timeout:15000})
-  assert.equal(await page.locator('.experiment-card').count(),7)
+  await expect(page.locator('.experiment-card')).toHaveCount(7,{timeout:15000})
   await page.screenshot({path:artifacts+'/student-dashboard.png',fullPage:true})
   await page.goto(base+'/admin')
   await expect(page.getByRole('heading',{name:'Welcome, UI'})).toBeVisible()
