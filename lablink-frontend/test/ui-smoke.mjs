@@ -5,16 +5,16 @@ import {fileURLToPath} from 'node:url'
 import {chromium,expect} from '@playwright/test'
 import {solutions} from '../../lablink-network-service/test/solutions.js'
 
-const base='http://localhost:5175',api=process.env.UI_API_BASE_URL,password=process.env.UI_TEST_PASSWORD
-if(!api||!password)throw new Error('Run through npm run test:ui:full-stack from the network service')
+const base=process.env.UI_FRONTEND_URL || 'http://localhost:5175',api=process.env.UI_API_BASE_URL,password=process.env.UI_TEST_PASSWORD
+if(!api||!password)throw new Error('Run through the network service full-stack or local verification command')
 const project=fileURLToPath(new URL('../',import.meta.url))
-const vite=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','localhost','--port','5175','--strictPort'],{
+const vite=process.env.UI_REUSE_FRONTEND==='1'?null:spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','localhost','--port','5175','--strictPort'],{
   cwd:project,windowsHide:true,stdio:'ignore',env:{...process.env,VITE_API_BASE_URL:api,VITE_NETWORK_WS_URL:process.env.UI_WS_URL}})
 let browser
 const issues=[]
 try {
   for(let i=0;i<80;i++){
-    if(vite.exitCode!==null)throw new Error('Vite could not start on test port 5175')
+    if(vite&&vite.exitCode!==null)throw new Error('Vite could not start on test port 5175')
     try{const response=await fetch(base);if(response.ok)break}catch{ /* Wait for the development server to listen. */ }
     if(i===79)throw new Error('Vite startup timed out')
     await new Promise(resolve=>setTimeout(resolve,250))
@@ -101,33 +101,34 @@ try {
     console.log('PASS browser editor, tests and submission: '+assignment.title)
   }
   async function logout(){await page.getByRole('button',{name:'Log out',exact:true}).click();await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible()}
-  async function login(email){
-    await page.getByLabel('Email address').fill(email);await page.getByLabel('Password',{exact:true}).fill(password)
+  async function login(email,accountPassword=password){
+    await page.getByLabel('Email address').fill(email);await page.getByLabel('Password',{exact:true}).fill(accountPassword)
     await page.getByRole('button',{name:'Log in',exact:true}).click()
   }
-  await logout();await login('admin@e2e.example')
+  await logout();await login(process.env.UI_ADMIN_EMAIL || 'admin@e2e.example',process.env.UI_ADMIN_PASSWORD || password)
   await expect(page.getByRole('heading',{name:'System overview'})).toBeVisible({timeout:10000})
   await page.getByRole('link',{name:'Users',exact:true}).click()
   await page.getByRole('button',{name:'Create Faculty',exact:true}).click()
   const facultyEmail='ui-faculty-'+Date.now()+'@test.example'
-  await page.getByLabel('Full name').fill('UI Faculty')
+  const facultyName='UI Faculty '+Date.now()
+  await page.getByLabel('Full name').fill(facultyName)
   await page.getByLabel('Email',{exact:true}).fill(facultyEmail)
   await page.getByLabel('Temporary password').fill(password)
   await page.getByRole('button',{name:'Create account',exact:true}).click()
   await expect(page.getByRole('cell',{name:facultyEmail,exact:true})).toBeVisible()
-  await page.getByRole('link',{name:'UI Faculty',exact:true}).click()
+  await page.getByRole('link',{name:facultyName,exact:true}).click()
   await expect(page.getByRole('heading',{name:'User details',exact:true})).toBeVisible()
   await expect(page.getByText(facultyEmail,{exact:true})).toBeVisible()
   await expect(page.getByText('Never',{exact:true})).toBeVisible()
   await page.screenshot({path:artifacts+'/admin-user-details.png',fullPage:true})
   await page.getByRole('link',{name:'Back to users',exact:true}).click()
   page.once('dialog',dialog=>dialog.dismiss())
-  await page.getByLabel('Status for UI Faculty',{exact:true}).selectOption('SUSPENDED')
-  await expect(page.getByLabel('Status for UI Faculty',{exact:true})).toHaveValue('ACTIVE')
+  await page.getByLabel('Status for '+facultyName,{exact:true}).selectOption('SUSPENDED')
+  await expect(page.getByLabel('Status for '+facultyName,{exact:true})).toHaveValue('ACTIVE')
   page.once('dialog',dialog=>dialog.accept())
-  await page.getByLabel('Status for UI Faculty',{exact:true}).selectOption('INACTIVE')
+  await page.getByLabel('Status for '+facultyName,{exact:true}).selectOption('INACTIVE')
   await expect(page.getByRole('row').filter({hasText:facultyEmail}).locator('.badge')).toHaveText('INACTIVE')
-  await page.getByLabel('Status for UI Faculty',{exact:true}).selectOption('ACTIVE')
+  await page.getByLabel('Status for '+facultyName,{exact:true}).selectOption('ACTIVE')
   await expect(page.getByRole('row').filter({hasText:facultyEmail}).locator('.badge')).toHaveText('ACTIVE')
   await page.getByRole('link',{name:'Servers',exact:true}).click()
   page.once('dialog',dialog=>dialog.dismiss())
@@ -149,7 +150,12 @@ try {
   await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
   const httpAssignment=assignments.find(a=>a.assignmentType==='http-api')
   await page.goto(base+'/faculty/assignments/'+httpAssignment.id+'/edit')
-  await page.getByRole('button',{name:'Add test case',exact:true}).click()
+  const facultyToken=await page.evaluate(()=>sessionStorage.getItem('lablink-token'))
+  const tests=await (await page.request.get(api+'/api/faculty/assignments/'+httpAssignment.id+'/tests',{
+    headers:{Authorization:'Bearer '+facultyToken}})).json()
+  if(tests.some(test=>test.name==='Browser-created 404 test'))
+    await page.getByRole('row').filter({hasText:'Browser-created 404 test'}).getByRole('button',{name:'Edit test',exact:true}).click()
+  else await page.getByRole('button',{name:'Add test case',exact:true}).click()
   await page.getByLabel('Test name').fill('Browser-created 404 test')
   await page.getByLabel('Test configuration JSON').fill(JSON.stringify({input:{path:'/students/missing'}}))
   await page.getByRole('button',{name:'Save test case',exact:true}).click()
@@ -174,6 +180,8 @@ try {
   console.log('PASS browser logout, role guards, faculty creation, service management, test editing, grading and student feedback')
 }finally{
   await browser?.close()
-  vite.kill()
-  await new Promise(resolve=>{if(vite.exitCode!==null)resolve();else vite.once('exit',resolve)})
+  if(vite){
+    vite.kill()
+    await new Promise(resolve=>{if(vite.exitCode!==null)resolve();else vite.once('exit',resolve)})
+  }
 }

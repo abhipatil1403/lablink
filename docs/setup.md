@@ -1,5 +1,11 @@
 # LabLink setup
 
+## Configured workstation
+
+The local verification on 15 October 2026 uses React **5173**, the API **8081**, the gateway **3001**, and a dedicated PostgreSQL cluster on **127.0.0.1:5432**. Apache already uses 8080 and the existing Windows PostgreSQL service uses 5434; both were preserved. The ignored .env files contain the configured URLs and generated secrets. The examples below describe the general defaults; use the configured values when running this workstation.
+
+See [Local verification results](local-verification.md) for the exact start/stop commands, results and evidence. Local admin/student/faculty credentials are stored only in the ignored lablink-backend/.env.local-accounts.json file, restricted to the current Windows account and SYSTEM. Open that file locally when logging in; do not paste or commit its values. The runtime bootstrap password was removed after the initial admin was created.
+
 ## Prerequisites
 
 - Java 17 or later.
@@ -89,6 +95,8 @@ In terminal 1:
 cd lablink-backend
 .\mvnw.cmd spring-boot:run
 ```
+
+To start the already verified package without rebuilding, run `java -jar target/lablink-backend-0.1.0.jar` from lablink-backend. Do not package/clean the same JAR while it is running on Windows.
 
 Running .\mvnw.cmd alone fails because Maven requires a goal. Flyway applies migrations; Hibernate validates the resulting schema.
 

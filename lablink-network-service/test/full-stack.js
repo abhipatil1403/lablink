@@ -24,7 +24,7 @@ const backend=spawn('java',['-jar','target/lablink-backend-0.1.0.jar','--spring.
   env:{...process.env,PORT:String(port),DATABASE_URL:process.env.TEST_DATABASE_URL || 'jdbc:postgresql://127.0.0.1:55432/lablink_test',
     DATABASE_USERNAME:process.env.TEST_DATABASE_USERNAME || 'lablink_test',DATABASE_PASSWORD:process.env.TEST_DATABASE_PASSWORD || '',
     JWT_SECRET:randomBytes(32).toString('hex'),GATEWAY_SHARED_SECRET:key,INITIAL_ADMIN_EMAIL:'admin@e2e.example',
-    INITIAL_ADMIN_PASSWORD:password,FRONTEND_ORIGIN:'http://localhost:5173,http://localhost:5175'}
+    INITIAL_ADMIN_PASSWORD:password,CORS_ALLOWED_ORIGINS:'http://localhost:5173,http://localhost:5175'}
 })
 backend.stdout.pipe(output);backend.stderr.pipe(output)
 let gateway
@@ -44,6 +44,10 @@ try {
   }
   gateway=await createNetworkServer({apiBaseUrl:base,gatewayKey:key,frontendOrigin:'http://localhost:5173,http://localhost:5175'})
   await new Promise(resolve=>gateway.server.listen(0,'127.0.0.1',resolve))
+  const preflight=await fetch(base+'/api/auth/register',{method:'OPTIONS',headers:{Origin:'http://localhost:5175',
+    'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}})
+  assert.equal(preflight.status,200,'The isolated browser origin must pass API CORS preflight')
+  assert.equal(preflight.headers.get('access-control-allow-origin'),'http://localhost:5175')
   const login=await api('/api/auth/login',null,{email:'admin@e2e.example',password})
   const admin=login.token
   const professor=await api('/api/admin/faculty',admin,{name:'E2E Faculty',email:'faculty@e2e.example',password})

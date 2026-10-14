@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test test/*.test.js",
-    "test:full-stack": "node test/full-stack.js"
+    "test:full-stack": "node test/full-stack.js",
+    "test:local": "node test/local-stack.js",
+    "test:local:persistence": "node test/local-stack.js --persistence-only"
   },
   "dependencies": {
     "quickjs-emscripten": "^0.31.0",
