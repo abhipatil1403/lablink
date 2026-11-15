@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { FlaskConical, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react'
+import { FlaskConical, ArrowLeft, ArrowRight } from 'lucide-react'
 import { useAuth } from '../authContext'
 import { friendlyAuthError, login, logout, register } from '../services/authService'
 import { dashboardFor, workspaces } from '../workspaces'
@@ -66,12 +66,6 @@ export function LoginPage() {
     }
   }
 
-  function handleQuickFill() {
-    setEmail(activeCreds.email)
-    setPassword(activeCreds.password)
-    setError('')
-  }
-
   if (workspace && !selected) return <NotFoundPage />
   if (loading) return <main className="centered-state">Loading LabLink…</main>
   if (profile && dashboardFor(profile.role)) return <Navigate to={dashboardFor(profile.role)} replace />
@@ -95,31 +89,6 @@ export function LoginPage() {
       </nav>
 
       <p className="auth-account-note">{activeCreds.note}</p>
-
-      <div className="credentials-quick-box">
-        <div className="credentials-quick-header">
-          <span className="credentials-quick-title">Main {activeCreds.name} Credentials</span>
-          <span className="credentials-quick-badge">Default</span>
-        </div>
-        <div className="credentials-quick-fields">
-          <div className="credentials-field">
-            <span className="credentials-field-label">Email:</span>
-            <span className="credentials-field-value">{activeCreds.email}</span>
-          </div>
-          <div className="credentials-field">
-            <span className="credentials-field-label">Password:</span>
-            <span className="credentials-field-value">12345678</span>
-          </div>
-        </div>
-        <button
-          type="button"
-          className="credentials-quick-btn"
-          onClick={handleQuickFill}
-          title="Click to auto-fill these credentials into the form"
-        >
-          <Sparkles size={14} aria-hidden="true" /> Auto-fill {activeCreds.name} Credentials
-        </button>
-      </div>
 
       <form onSubmit={submit}>
         <label htmlFor="email">Email address</label>
