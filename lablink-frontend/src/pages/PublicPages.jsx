@@ -224,15 +224,22 @@ export function LandingPage() {
                   </ul>
 
                   <div className="workspace-card-actions">
-                    <Link to={role.primaryAction.to} className="workspace-action" style={{background: role.color}}>
-                      {role.primaryAction.label} <ArrowRight size={16} aria-hidden="true"/>
+                    <Link
+                      to={role.primaryAction.to}
+                      className={`workspace-action workspace-action-${role.id}`}
+                    >
+                      <span>{role.primaryAction.label}</span>
+                      <ArrowRight size={17} aria-hidden="true"/>
                     </Link>
-                    {role.secondaryAction && (
-                      <Link to={role.secondaryAction.to} className="workspace-secondary-action">
-                        {role.secondaryAction.label}
-                      </Link>
-                    )}
-                    {role.note && <small className="workspace-note">{role.note}</small>}
+                    <div className="workspace-footer-meta">
+                      {role.secondaryAction ? (
+                        <Link to={role.secondaryAction.to} className="workspace-secondary-action">
+                          {role.secondaryAction.label}
+                        </Link>
+                      ) : role.note ? (
+                        <span className="workspace-note">{role.note}</span>
+                      ) : null}
+                    </div>
                   </div>
                 </article>
               )

@@ -264,12 +264,9 @@ tbody tr:last-child td { border: 0; }
 .workspace-kicker { font-size: .57rem; letter-spacing: .1em; color: #566a83; font-weight: 800; margin: 0 0 .6rem; }
 .workspace-card h3 { font-size: 1.6rem; letter-spacing: -.03em; margin: 0 0 .6rem; }
 .workspace-description { font-size: .86rem; line-height: 1.7; color: #53647b; margin: 0; }
-.workspace-card ul { list-style: none; padding: 0; margin: 1.6rem 0 2rem; display: grid; gap: .9rem; }
+.workspace-card ul { list-style: none; padding: 0; margin: 1.4rem 0 1.8rem; display: grid; gap: .85rem; flex-grow: 1; }
 .workspace-card li { display: flex; align-items: start; gap: .6rem; font-size: .78rem; color: #40536c; line-height: 1.6; }
 .workspace-card li svg { flex-shrink: 0; color: #24755f; margin-top: 2px; }
-.workspace-action { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .9rem 0; border-top: 1px solid #d8e2ee; margin-top: auto; font-size: .82rem; text-decoration: none; color: #204b9f; min-height: 48px; }
-.workspace-action:hover { text-decoration: underline; text-underline-offset: 4px; }
-.workspace-card small { font-size: .67rem; color: #586a80; line-height: 1.65; }
 .public-features { padding-block: 0 80px; }
 .public-feature-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2rem; padding-top: 2rem; border-top: 1px solid #e0e7f0; }
 .public-feature-grid svg { color: #315a9b; }
@@ -358,10 +355,88 @@ tbody tr:last-child td { border: 0; }
 
 /* Workspace card enhancements */
 .workspace-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.workspace-card-actions { margin-top: auto; display: flex; flex-direction: column; gap: 0.6rem; }
-.workspace-secondary-action { font-size: 0.8rem; font-weight: 600; color: #2563eb; text-decoration: none; text-align: center; }
-.workspace-secondary-action:hover { text-decoration: underline; }
-.workspace-note { font-size: 0.72rem; color: #64748b; line-height: 1.4; display: block; margin-top: 0.2rem; }
+.workspace-card-actions { margin-top: auto; display: flex; flex-direction: column; gap: 0.65rem; width: 100%; }
+
+.workspace-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.85rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-decoration: none !important;
+  color: #ffffff !important;
+  letter-spacing: 0.01em;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  min-height: 48px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  border: none;
+  box-sizing: border-box;
+}
+.workspace-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  color: #ffffff !important;
+  text-decoration: none !important;
+}
+.workspace-action:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+.workspace-action-student {
+  background-color: #2563eb;
+}
+.workspace-action-student:hover {
+  background-color: #1d4ed8;
+}
+.workspace-action-faculty {
+  background-color: #0891b2;
+}
+.workspace-action-faculty:hover {
+  background-color: #0e7490;
+}
+.workspace-action-admin {
+  background-color: #4f46e5;
+}
+.workspace-action-admin:hover {
+  background-color: #4338ca;
+}
+
+.workspace-footer-meta {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.workspace-secondary-action {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+.workspace-secondary-action:hover {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+.workspace-note {
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.35;
+  margin: 0;
+  text-align: center;
+}
 
 /* Landing assignment grid */
 .landing-assignment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
