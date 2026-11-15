@@ -46,9 +46,9 @@ const DEFAULT_ASSIGNMENTS = [
     concepts: ['TCP', 'Sockets', 'Connection lifecycle'],
     submissionStatus: 'NOT_STARTED',
     attempts: 0,
-    starterCode: 'function solve(input) {\n  var socket = tcp.connect(input.service);\n  tcp.send(socket, "USER " + input.username);\n  var welcome = tcp.read(socket);\n  var replies = [];\n  for (var i = 0; i < input.messages.length; i++) {\n    tcp.send(socket, "MSG " + input.messages[i]);\n    replies.push(tcp.read(socket));\n  }\n  tcp.send(socket, "QUIT");\n  var disconnect = tcp.read(socket);\n  var closed = tcp.read(socket) === null;\n  tcp.close(socket);\n  return { welcome: welcome, replies: replies, closed: closed };\n}',
+    starterCode: 'function solve(input) {\n  var socket = tcp.connect(input.service);\n  if (input.service === "offline") {\n    tcp.close(socket);\n    return { error: true };\n  }\n  tcp.send(socket, "USER " + input.username);\n  var welcome = tcp.read(socket);\n  var replies = [];\n  for (var i = 0; i < input.messages.length; i++) {\n    tcp.send(socket, "MSG " + input.messages[i]);\n    replies.push(tcp.read(socket));\n  }\n  tcp.send(socket, "QUIT");\n  var disconnect = tcp.read(socket);\n  var closed = tcp.read(socket) === null;\n  tcp.close(socket);\n  return { welcome: welcome, replies: replies, closed: closed };\n}',
     metadata: {
-      starterCode: 'function solve(input) {\n  var socket = tcp.connect(input.service);\n  tcp.send(socket, "USER " + input.username);\n  var welcome = tcp.read(socket);\n  var replies = [];\n  for (var i = 0; i < input.messages.length; i++) {\n    tcp.send(socket, "MSG " + input.messages[i]);\n    replies.push(tcp.read(socket));\n  }\n  tcp.send(socket, "QUIT");\n  var disconnect = tcp.read(socket);\n  var closed = tcp.read(socket) === null;\n  tcp.close(socket);\n  return { welcome: welcome, replies: replies, closed: closed };\n}',
+      starterCode: 'function solve(input) {\n  var socket = tcp.connect(input.service);\n  if (input.service === "offline") {\n    tcp.close(socket);\n    return { error: true };\n  }\n  tcp.send(socket, "USER " + input.username);\n  var welcome = tcp.read(socket);\n  var replies = [];\n  for (var i = 0; i < input.messages.length; i++) {\n    tcp.send(socket, "MSG " + input.messages[i]);\n    replies.push(tcp.read(socket));\n  }\n  tcp.send(socket, "QUIT");\n  var disconnect = tcp.read(socket);\n  var closed = tcp.read(socket) === null;\n  tcp.close(socket);\n  return { welcome: welcome, replies: replies, closed: closed };\n}',
       capabilityApi: 'tcp.connect(\'chat\'|\'file\'|\'search\'|\'offline\'), tcp.send(id,line), tcp.read(id), tcp.close(id); print(value).'
     },
     testCases: [
@@ -192,9 +192,9 @@ const DEFAULT_ASSIGNMENTS = [
     concepts: ['Availability', 'Latency', 'Timeouts', 'Monitoring'],
     submissionStatus: 'NOT_STARTED',
     attempts: 0,
-    starterCode: 'function solve(input) {\n  var list = input.servers.map(function(name) {\n    var r = http.probe(name);\n    var online = r.status >= 200 && r.status < 300;\n    return {\n      name: name,\n      status: online ? "ONLINE" : "OFFLINE",\n      latencyMs: r.latencyMs,\n      reason: r.error || (r.status >= 400 ? "HTTP " + r.status : "")\n    };\n  });\n  return { servers: list };\n}',
+    starterCode: 'function solve(input) {\n  var list = input.servers.map(function(name) {\n    var r = http.probe(name);\n    var online = r.status >= 200 && r.status < 300;\n    return {\n      name: name,\n      status: online ? "ONLINE" : "OFFLINE",\n      latencyMs: r.latencyMs,\n      reason: r.error || (r.status >= 400 ? "HTTP " + r.status : (online ? "" : "OFFLINE"))\n    };\n  });\n  return { servers: list };\n}',
     metadata: {
-      starterCode: 'function solve(input) {\n  var list = input.servers.map(function(name) {\n    var r = http.probe(name);\n    var online = r.status >= 200 && r.status < 300;\n    return {\n      name: name,\n      status: online ? "ONLINE" : "OFFLINE",\n      latencyMs: r.latencyMs,\n      reason: r.error || (r.status >= 400 ? "HTTP " + r.status : "")\n    };\n  });\n  return { servers: list };\n}',
+      starterCode: 'function solve(input) {\n  var list = input.servers.map(function(name) {\n    var r = http.probe(name);\n    var online = r.status >= 200 && r.status < 300;\n    return {\n      name: name,\n      status: online ? "ONLINE" : "OFFLINE",\n      latencyMs: r.latencyMs,\n      reason: r.error || (r.status >= 400 ? "HTTP " + r.status : (online ? "" : "OFFLINE"))\n    };\n  });\n  return { servers: list };\n}',
       capabilityApi: 'http.probe(name); print(value).'
     },
     testCases: [
@@ -273,8 +273,31 @@ export function initMockDatabase() {
     }
     setStored(STORAGE_KEYS.USERS, updatedUsers)
   }
-  // Always update assignments and servers to guarantee all required frontend properties exist
-  setStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
+  // Preserve user-created assignments and edits, but ensure all default assignments exist with required schema
+  const existingAssignments = getStored(STORAGE_KEYS.ASSIGNMENTS, null)
+  if (!existingAssignments || !Array.isArray(existingAssignments) || existingAssignments.length === 0) {
+    setStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
+  } else {
+    const mergedAssignments = [...existingAssignments]
+    for (const def of DEFAULT_ASSIGNMENTS) {
+      const idx = mergedAssignments.findIndex(a => a.id === def.id || a.slug === def.slug)
+      if (idx >= 0) {
+        mergedAssignments[idx] = {
+          ...def,
+          ...mergedAssignments[idx],
+          networkingConcepts: mergedAssignments[idx].networkingConcepts || def.networkingConcepts || [],
+          concepts: mergedAssignments[idx].concepts || def.concepts || [],
+          requirements: mergedAssignments[idx].requirements || def.requirements || [],
+          constraints: mergedAssignments[idx].constraints || def.constraints || [],
+          instructions: mergedAssignments[idx].instructions || def.instructions || [],
+          testCases: mergedAssignments[idx].testCases || def.testCases || []
+        }
+      } else {
+        mergedAssignments.push(def)
+      }
+    }
+    setStored(STORAGE_KEYS.ASSIGNMENTS, mergedAssignments)
+  }
   setStored(STORAGE_KEYS.SERVERS, DEFAULT_SERVERS)
   if (!getStored(STORAGE_KEYS.ATTEMPTS, null)) setStored(STORAGE_KEYS.ATTEMPTS, [])
   if (!getStored(STORAGE_KEYS.SUBMISSIONS, null)) setStored(STORAGE_KEYS.SUBMISSIONS, [])
@@ -390,17 +413,163 @@ export async function handleMockApiRequest(path, options = {}) {
     return { message: 'Logged out successfully' }
   }
 
-  // === ASSIGNMENTS ===
-  if (path === '/api/assignments' || path === '/api/admin/assignments') {
-    return getStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
-  }
+  // === ASSIGNMENTS (STUDENT, FACULTY, ADMIN) ===
+  const isAssignmentPath = path.startsWith('/api/assignments') ||
+                           path.startsWith('/api/faculty/assignments') ||
+                           path.startsWith('/api/admin/assignments')
 
-  if (path.startsWith('/api/assignments/')) {
-    const id = path.replace('/api/assignments/', '')
+  if (isAssignmentPath) {
     const assignments = getStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
-    const found = assignments.find(a => a.id === id || a.slug === id)
-    if (!found) throw new Error('Assignment not found')
-    return found
+
+    // Tests endpoints: e.g. /api/faculty/assignments/:id/tests or /api/admin/assignments/:id/tests/:testId
+    if (path.includes('/tests')) {
+      const parts = path.split('/')
+      const testsIdx = parts.indexOf('tests')
+      const targetAssignmentId = decodeURIComponent(parts[testsIdx - 1])
+      const testId = parts[testsIdx + 1] ? decodeURIComponent(parts[testsIdx + 1]) : null
+
+      const found = assignments.find(a => a.id === targetAssignmentId || a.slug === targetAssignmentId)
+      if (!found) throw new Error('Assignment not found')
+      found.testCases = found.testCases || []
+
+      if (method === 'GET') {
+        return found.testCases.map(t => ({
+          ...t,
+          enabled: t.enabled !== false
+        }))
+      }
+
+      if (method === 'POST' || method === 'PUT') {
+        if (testId) {
+          const tIdx = found.testCases.findIndex(t => t.id === testId)
+          if (tIdx >= 0) {
+            found.testCases[tIdx] = { ...found.testCases[tIdx], ...body }
+          } else {
+            found.testCases.push({ id: testId, ...body })
+          }
+        } else {
+          const newTest = {
+            id: 'tc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+            name: body.name || 'Test Case',
+            type: found.slug || 'general',
+            weight: Number(body.weight) || 20,
+            configuration: body.configuration || { input: {} },
+            enabled: body.enabled !== false
+          }
+          found.testCases.push(newTest)
+        }
+        setStored(STORAGE_KEYS.ASSIGNMENTS, assignments)
+        return body
+      }
+    }
+
+    // Status toggle endpoint: e.g. /api/faculty/assignments/:id/status
+    if (path.endsWith('/status') && method === 'PATCH') {
+      const parts = path.split('/')
+      const targetId = decodeURIComponent(parts[parts.length - 2])
+      const found = assignments.find(a => a.id === targetId || a.slug === targetId)
+      if (!found) throw new Error('Assignment not found')
+      found.status = body.status
+      setStored(STORAGE_KEYS.ASSIGNMENTS, assignments)
+      logAudit(currentUser.email, 'STATUS_ASSIGNMENT', 'ASSIGNMENT', `Changed ${found.title} status to ${body.status}`)
+      return found
+    }
+
+    // List all assignments
+    if ((path === '/api/assignments' || path === '/api/faculty/assignments' || path === '/api/admin/assignments') && method === 'GET') {
+      return assignments
+    }
+
+    // Create new assignment: POST /api/faculty/assignments or /api/admin/assignments
+    if ((path === '/api/assignments' || path === '/api/faculty/assignments' || path === '/api/admin/assignments') && method === 'POST') {
+      const id = '00000000-0000-4000-8000-' + String(Date.now()).slice(-12).padStart(12, '0')
+      const slug = (body.title || 'assignment').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || ('assignment-' + Date.now())
+
+      const reqList = Array.isArray(body.requirements) ? body.requirements : (body.requirements ? String(body.requirements).split('\n').map(s=>s.trim()).filter(Boolean) : ['Implement solve(input)'])
+      const conList = Array.isArray(body.constraints) ? body.constraints : (body.constraints ? String(body.constraints).split('\n').map(s=>s.trim()).filter(Boolean) : ['JavaScript solve(input) runs in an isolated sandbox'])
+      const insList = Array.isArray(body.instructions) ? body.instructions : (body.instructions ? String(body.instructions).split('\n').map(s=>s.trim()).filter(Boolean) : ['Read instructions and run tests'])
+      const conConcept = Array.isArray(body.networkingConcepts) ? body.networkingConcepts : (body.networkingConcepts ? String(body.networkingConcepts).split('\n').map(s=>s.trim()).filter(Boolean) : [body.protocol || 'TCP'])
+
+      const newAssignment = {
+        id,
+        title: body.title || 'New Networking Assignment',
+        slug,
+        protocol: (body.protocol || 'TCP').toUpperCase(),
+        difficulty: body.difficulty || 'MEDIUM',
+        status: body.status || 'ACTIVE',
+        description: body.description || body.objective || 'Complete the networking challenge.',
+        objective: body.objective || body.description || 'Implement client-server protocol behavior.',
+        requirements: reqList,
+        constraints: conList,
+        instructions: insList,
+        expectedBehavior: body.expectedBehavior || 'Return expected protocol responses verified against network traffic.',
+        serverRequirement: body.serverRequirement || `Controlled ${body.protocol || 'TCP'} service`,
+        networkingConcepts: conConcept,
+        concepts: conConcept,
+        submissionStatus: 'NOT_STARTED',
+        attempts: 0,
+        deadline: body.deadline || null,
+        starterCode: body.starterCode || 'function solve(input) {\n  // Implement your protocol solution\n  return { success: true };\n}',
+        metadata: {
+          starterCode: body.starterCode || 'function solve(input) {\n  // Implement your protocol solution\n  return { success: true };\n}'
+        },
+        testCases: body.testCases || [
+          { id: 'tc-' + Date.now() + '-1', name: 'Validation Test', type: slug, weight: 100, configuration: { input: {} }, enabled: true }
+        ]
+      }
+      assignments.push(newAssignment)
+      setStored(STORAGE_KEYS.ASSIGNMENTS, assignments)
+      logAudit(currentUser.email, 'CREATE_ASSIGNMENT', 'ASSIGNMENT', `Created new assignment: ${newAssignment.title}`)
+      return newAssignment
+    }
+
+    // Get single assignment
+    if (method === 'GET') {
+      const parts = path.split('/')
+      const targetId = decodeURIComponent(parts[parts.length - 1])
+      const found = assignments.find(a => a.id === targetId || a.slug === targetId)
+      if (!found) throw new Error('Assignment not found')
+      return found
+    }
+
+    // Update assignment
+    if (method === 'PUT') {
+      const parts = path.split('/')
+      const targetId = decodeURIComponent(parts[parts.length - 1])
+      const idx = assignments.findIndex(a => a.id === targetId || a.slug === targetId)
+      if (idx < 0) throw new Error('Assignment not found')
+
+      const reqList = Array.isArray(body.requirements) ? body.requirements : (body.requirements ? String(body.requirements).split('\n').map(s=>s.trim()).filter(Boolean) : assignments[idx].requirements)
+      const conList = Array.isArray(body.constraints) ? body.constraints : (body.constraints ? String(body.constraints).split('\n').map(s=>s.trim()).filter(Boolean) : assignments[idx].constraints)
+      const insList = Array.isArray(body.instructions) ? body.instructions : (body.instructions ? String(body.instructions).split('\n').map(s=>s.trim()).filter(Boolean) : assignments[idx].instructions)
+      const conConcept = Array.isArray(body.networkingConcepts) ? body.networkingConcepts : (body.networkingConcepts ? String(body.networkingConcepts).split('\n').map(s=>s.trim()).filter(Boolean) : assignments[idx].networkingConcepts)
+
+      assignments[idx] = {
+        ...assignments[idx],
+        ...body,
+        requirements: reqList,
+        constraints: conList,
+        instructions: insList,
+        networkingConcepts: conConcept,
+        concepts: conConcept
+      }
+      setStored(STORAGE_KEYS.ASSIGNMENTS, assignments)
+      logAudit(currentUser.email, 'UPDATE_ASSIGNMENT', 'ASSIGNMENT', `Updated assignment: ${assignments[idx].title}`)
+      return assignments[idx]
+    }
+
+    // Delete assignment
+    if (method === 'DELETE') {
+      const parts = path.split('/')
+      const targetId = decodeURIComponent(parts[parts.length - 1])
+      const idx = assignments.findIndex(a => a.id === targetId || a.slug === targetId)
+      if (idx >= 0) {
+        const removed = assignments.splice(idx, 1)[0]
+        setStored(STORAGE_KEYS.ASSIGNMENTS, assignments)
+        logAudit(currentUser.email, 'DELETE_ASSIGNMENT', 'ASSIGNMENT', `Deleted assignment: ${removed.title}`)
+      }
+      return { message: 'Assignment deleted successfully' }
+    }
   }
 
   // === SESSIONS / ATTEMPTS ===

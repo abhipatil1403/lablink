@@ -32,7 +32,7 @@ function AssignmentCard({assignment}) {
       </div>
       <p className="subtle-note">
         {assignment.attempts ?? 0} attempts · {statusFormatted}
-        {assignment.deadline ? ' · Due ' + new Date(assignment.deadline).toLocaleString() : ''}
+        {assignment.deadline && !isNaN(new Date(assignment.deadline).getTime()) ? ' · Due ' + new Date(assignment.deadline).toLocaleString() : ''}
       </p>
       <Link className="card-link" to={'/assignment/' + assignment.id}>
         View assignment <ArrowRight size={16}/>
@@ -164,7 +164,7 @@ export function ExperimentDetails() {
                   </div>
                   <p>{a.serverRequirement || 'Controlled network service'}</p>
                   <Status value={a.status || 'ACTIVE'}/>
-                  <p>{a.deadline ? 'Due ' + new Date(a.deadline).toLocaleString() : 'No deadline set'}</p>
+                  <p>{a.deadline && !isNaN(new Date(a.deadline).getTime()) ? 'Due ' + new Date(a.deadline).toLocaleString() : 'No deadline set'}</p>
                 </section>
                 <section className="content-card">
                   <h2>Evaluation</h2>

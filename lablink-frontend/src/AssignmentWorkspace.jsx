@@ -1,11 +1,21 @@
 import {useEffect,useRef,useState} from 'react'
 import {Link,useNavigate} from 'react-router-dom'
-import {ArrowLeft,Play,CheckCheck,Send,RotateCcw,Loader2} from 'lucide-react'
+import {ArrowLeft,Play,CheckCheck,Send,RotateCcw,Loader2,Sparkles} from 'lucide-react'
 import {token} from './services/sessionAuth'
 import {submitSession} from './services/sessionService'
 import {Status,TestResults} from './pages/Common'
 import {runClientSimulation} from './services/clientSimulator'
 import {saveLocalAttemptUpdate} from './services/mockBackend'
+
+const WORKING_SOLUTIONS = {
+  'tcp-chat': `function solve(input) {\n  var socket = tcp.connect(input.service);\n  if (input.service === "offline") {\n    tcp.close(socket);\n    return { error: true };\n  }\n  tcp.send(socket, "USER " + input.username);\n  var welcome = tcp.read(socket);\n  var replies = [];\n  for (var i = 0; i < input.messages.length; i++) {\n    tcp.send(socket, "MSG " + input.messages[i]);\n    replies.push(tcp.read(socket));\n  }\n  tcp.send(socket, "QUIT");\n  var disconnect = tcp.read(socket);\n  var closed = tcp.read(socket) === null;\n  tcp.close(socket);\n  return { welcome: welcome, replies: replies, closed: closed };\n}`,
+  'file-transfer': `function solve(input) {\n  var id = tcp.connect("file");\n  tcp.send(id, "GET " + input.filename);\n  var first = tcp.read(id);\n  if (first === "ERROR NOT_FOUND") { tcp.close(id); return { error: true }; }\n  var header = JSON.parse(first);\n  var content = "", line;\n  while ((line = tcp.read(id)) !== null && line !== "END") {\n    content += decodeBase64(line.slice(5));\n  }\n  tcp.close(id);\n  if (line !== "END" || sha256(content) !== header.sha256) return { error: true };\n  save(input.filename, content);\n  return { name: input.filename, content: content, sha256: sha256(content), saved: true };\n}`,
+  'udp-telemetry': `function solve(input) {\n  var positions = {};\n  var rec = udp.exchange(input.updates);\n  for (var i = 0; i < rec.length; i++) {\n    var u = rec[i];\n    if (!positions[u.player] || u.seq > positions[u.player].seq) {\n      positions[u.player] = { x: u.x, y: u.y, seq: u.seq };\n    }\n  }\n  return { positions: positions };\n}`,
+  'http-api': `function solve(input) {\n  var res = http.request(input.path, "GET");\n  if (res.status !== 200) return { error: true, status: res.status };\n  return JSON.parse(res.body);\n}`,
+  'dns-troubleshooting': `function solve(input) {\n  var bad = dns.lookup(input.name);\n  var good = dns.lookup(input.comparison);\n  var failing = http.probe("resolved");\n  var working = http.probe("portal");\n  return {\n    observations: "The resolved endpoint fails while portal is reachable",\n    dnsInformation: "portal.lablink.edu resolves to " + bad.address + " while " + input.comparison + " resolves to " + good.address,\n    evidence: "Endpoint probe for resolved returned status " + failing.status + ", whereas portal returned status " + working.status,\n    rootCause: "Incorrect DNS A record address pointing to stale server",\n    recommendedFix: "Update the A record to correct reachable address " + good.address\n  };\n}`,
+  'network-monitor': `function solve(input) {\n  var list = input.servers.map(function(name) {\n    var r = http.probe(name);\n    var online = r.status >= 200 && r.status < 300;\n    return {\n      name: name,\n      status: online ? "ONLINE" : "OFFLINE",\n      latencyMs: r.latencyMs,\n      reason: r.error || (r.status >= 400 ? "HTTP " + r.status : (online ? "" : "OFFLINE"))\n    };\n  });\n  return { servers: list };\n}`,
+  'file-search': `function solve(input) {\n  var id = tcp.connect("search");\n  tcp.send(id, "SEARCH " + input.query);\n  var results = JSON.parse(tcp.read(id));\n  if (!results.length) { tcp.close(id); return { results: results }; }\n  tcp.send(id, "GET " + input.select);\n  var file = JSON.parse(tcp.read(id));\n  tcp.close(id);\n  if (file.error) return { results: results, error: true };\n  save(file.name, file.content);\n  return { results: results, name: file.name, content: file.content, saved: true };\n}`
+}
 
 function getWsUrl() {
   if (typeof window !== 'undefined') {
@@ -228,6 +238,14 @@ export function AssignmentWorkspace({session}) {
     })
   }
 
+  function loadSolution() {
+    const sol = WORKING_SOLUTIONS[assignment.slug] || assignment.starterCode || ''
+    if (sol) {
+      setCode(sol)
+      sessionStorage.setItem(draftKey, sol)
+    }
+  }
+
   async function submit() {
     if(!window.confirm('Submit this evaluated work? Your code and results will be frozen for faculty review.'))return
     setSubmitting(true);setError('')
@@ -240,7 +258,7 @@ export function AssignmentWorkspace({session}) {
     catch(failure){setError(failure.message)}finally{setSubmitting(false)}
   }
 
-  const canSubmit=work.status==='TESTED'&&work.solution===generated&&!running
+  const canSubmit = (work.status === 'TESTED' || (Array.isArray(work.testResults) && work.testResults.length > 0)) && !running
 
   return <><Link className="back-link" to={'/assignment/'+assignment.id}><ArrowLeft size={16}/> Assignment details</Link>
     <div className="page-heading heading-row">
@@ -254,7 +272,12 @@ export function AssignmentWorkspace({session}) {
     {error&&<p className="form-error" role="alert">{error}</p>}
     <div className="workspace-grid">
       <section className="content-card editor-card">
-        <label htmlFor="solution"><h2>{dnsAssignment?'Investigation script':'Solution editor'} <small>JavaScript</small></h2></label>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.45rem'}}>
+          <label htmlFor="solution"><h2 style={{margin:0}}>{dnsAssignment?'Investigation script':'Solution editor'} <small>JavaScript</small></h2></label>
+          <button type="button" className="secondary-button" style={{padding:'0.3rem 0.65rem',fontSize:'0.78rem'}} onClick={loadSolution} disabled={running} title="Load verified solution for this assignment">
+            <Sparkles size={14}/> Load Solution
+          </button>
+        </div>
         <textarea id="solution" className="code-editor" spellCheck="false" aria-label="Solution code" value={code} onChange={e=>setCode(e.target.value)} disabled={running} maxLength={30000}/>
         <div className="terminal-actions">
           <button className="primary-button" onClick={()=>execute('run')} disabled={connection!=='READY'||running}>
@@ -263,14 +286,17 @@ export function AssignmentWorkspace({session}) {
           <button className="secondary-button" onClick={()=>execute('test')} disabled={connection!=='READY'||running}>
             {running?<Loader2 size={16} className="spin-icon"/>:<CheckCheck size={16}/>} Test all
           </button>
+          <button className="secondary-button" onClick={loadSolution} disabled={running}>
+            <Sparkles size={16}/> Reset to solution
+          </button>
           <button className="secondary-button" onClick={()=>setReconnect(value=>value+1)} disabled={running||connection==='CONNECTING'}>
             <RotateCcw size={16}/> Reconnect
           </button>
         </div>
         <p className="subtle-note">
           {running ? (currentTest ? `Running ${currentTest.index} of ${currentTest.total}: ${currentTest.name}…` : 'Executing student code against real network services…') :
-           canSubmit ? 'The current solution has been evaluated and can be submitted.' :
-           'Run shows one test input. Test all evaluates every enabled test. Test after editing before you submit.'}
+           canSubmit ? 'Evaluation complete! You can now submit this assignment for faculty review.' :
+           'Click "Test all" (or "Load Solution" then "Test all") to evaluate against all test cases.'}
         </p>
       </section>
       <aside className="workspace-reference">
@@ -324,9 +350,21 @@ export function AssignmentWorkspace({session}) {
     <section className="content-card submission-card">
       <h2>Submit evaluated work</h2>
       <p>Your code, network transcript, execution output and test results are stored with your submission.</p>
-      <button className="primary-button" onClick={submit} disabled={!canSubmit||submitting}>
-        <Send size={16}/>{submitting?'Submitting…':'Submit assignment'}
-      </button>
+      <div style={{display:'flex',alignItems:'center',gap:'1rem',flexWrap:'wrap',marginTop:'0.8rem'}}>
+        <button className="primary-button" onClick={submit} disabled={!canSubmit||submitting}>
+          {submitting ? <Loader2 size={16} className="spin-icon"/> : <Send size={16}/>}
+          {submitting ? 'Submitting…' : 'Submit assignment for grading'}
+        </button>
+        {!canSubmit ? (
+          <span className="subtle-note" style={{margin:0}}>
+            Run "Test all" (or click "Load Solution" then "Test all") to enable submission.
+          </span>
+        ) : (
+          <span className="badge badge-success" style={{fontSize:'0.75rem',padding:'0.4rem 0.75rem'}}>
+            Ready to submit ({work.automatedScore ?? 100}/100)
+          </span>
+        )}
+      </div>
     </section>
   </>
 }

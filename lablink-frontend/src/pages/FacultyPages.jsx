@@ -4,7 +4,7 @@ import {ArrowLeft,ArrowRight,BookOpen,ClipboardCheck,Clock3,Users} from 'lucide-
 import {useAuth} from '../authContext'
 import {useRemote} from '../hooks/useRemote'
 import {getExperiment,listExperiments} from '../services/experimentService'
-import {assignmentTests,facultyDashboard,facultySession,facultySessions,facultyStudents,facultySubmission,facultySubmissions,reviewSubmission,saveTest,setExperimentStatus,updateExperiment} from '../services/facultyService'
+import {assignmentTests,createExperiment,deleteExperiment,facultyDashboard,facultySession,facultySessions,facultyStudents,facultySubmission,facultySubmissions,reviewSubmission,saveTest,setExperimentStatus,updateExperiment} from '../services/facultyService'
 import {DataState,Header,Status,WorkEvidence} from './Common'
 
 export function FacultyDashboard() {
@@ -20,12 +20,104 @@ export function FacultyExperiments() {
   const role=profile.role.toLowerCase()
   const {data,loading,error,reload}=useRemote(listExperiments, null, {interval: 5000})
   const [failure,setFailure]=useState(''),[busy,setBusy]=useState('')
+  const [creating,setCreating]=useState(false)
+  const [newForm,setNewForm]=useState({
+    title: '',
+    protocol: 'TCP',
+    difficulty: 'MEDIUM',
+    description: '',
+    deadline: ''
+  })
+  const [createBusy,setCreateBusy]=useState(false)
+
   async function toggle(item) {
     if(item.status==='ACTIVE'&&!window.confirm('Deactivate '+item.title+'? Students will be unable to start new attempts or runs.'))return
     setBusy(item.id);setFailure('')
     try{await setExperimentStatus(item.id,item.status==='ACTIVE'?'INACTIVE':'ACTIVE',role);reload()}catch(e){setFailure(e.message)}finally{setBusy('')}
   }
-  return <><Header eyebrow={profile.role} title="Manage assignments" description="Manage the seven course assignments, deadlines and automated test cases."/>{failure&&<p className="form-error" role="alert">{failure}</p>}<DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Assignment</th><th>Protocol</th><th>Difficulty</th><th>Deadline</th><th>Status</th><th>Actions</th></tr></thead><tbody>{data?.map(a=><tr key={a.id}><td>{a.title}</td><td>{a.protocol}</td><td>{a.difficulty}</td><td>{a.deadline?new Date(a.deadline).toLocaleString():'None'}</td><td><Status value={a.status}/></td><td className="table-actions"><Link to={'/'+role+'/assignments/'+a.id+'/edit'}>Edit / tests</Link><button disabled={busy===a.id} onClick={()=>toggle(a)}>{a.status==='ACTIVE'?'Deactivate':'Activate'}</button></td></tr>)}</tbody></table></div></DataState></>
+
+  async function remove(item) {
+    if(!window.confirm('Delete assignment "'+item.title+'"?'))return
+    setBusy(item.id);setFailure('')
+    try{await deleteExperiment(item.id,role);reload()}catch(e){setFailure(e.message)}finally{setBusy('')}
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault()
+    setCreateBusy(true);setFailure('')
+    try {
+      await createExperiment(newForm, role)
+      setCreating(false)
+      setNewForm({ title: '', protocol: 'TCP', difficulty: 'MEDIUM', description: '', deadline: '' })
+      reload()
+    } catch(err) {
+      setFailure(err.message)
+    } finally {
+      setCreateBusy(false)
+    }
+  }
+
+  const list = Array.isArray(data) ? data : []
+
+  return <>
+    <Header
+      eyebrow={profile.role}
+      title="Manage assignments"
+      description="Create, configure, test, and manage course networking assignments."
+      action={<button className="primary-button" onClick={()=>setCreating(c=>!c)}>{creating ? 'Cancel' : '+ New assignment'}</button>}
+    />
+    {failure&&<p className="form-error" role="alert">{failure}</p>}
+    {creating && (
+      <form className="content-card experiment-form" onSubmit={handleCreate} style={{marginBottom: '1.5rem'}}>
+        <h2>Create new assignment</h2>
+        <label>Title<input required maxLength={160} placeholder="e.g. WebSocket Live Chat" value={newForm.title} onChange={e=>setNewForm({...newForm,title:e.target.value})}/></label>
+        <div className="form-row">
+          <label>Protocol
+            <select value={newForm.protocol} onChange={e=>setNewForm({...newForm,protocol:e.target.value})}>
+              {['TCP','UDP','HTTP','DNS','WEBSOCKET'].map(p=><option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
+          <label>Difficulty
+            <select value={newForm.difficulty} onChange={e=>setNewForm({...newForm,difficulty:e.target.value})}>
+              {['EASY','MEDIUM','HARD'].map(d=><option key={d} value={d}>{d}</option>)}
+            </select>
+          </label>
+        </div>
+        <label>Description & Objective<textarea rows={3} required placeholder="Explain what students must implement..." value={newForm.description} onChange={e=>setNewForm({...newForm,description:e.target.value})}/></label>
+        <label>Deadline (Optional)<input type="datetime-local" value={newForm.deadline} onChange={e=>setNewForm({...newForm,deadline:e.target.value})}/></label>
+        <div className="terminal-actions">
+          <button className="primary-button" disabled={createBusy}>{createBusy?'Creating…':'Create assignment'}</button>
+          <button type="button" className="secondary-button" onClick={()=>setCreating(false)}>Cancel</button>
+        </div>
+      </form>
+    )}
+    <DataState loading={loading} error={error}>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Assignment</th><th>Protocol</th><th>Difficulty</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            {list.map(a=><tr key={a.id}>
+              <td><strong>{a.title}</strong></td>
+              <td><span className="chip">{a.protocol}</span></td>
+              <td><span className="chip">{a.difficulty}</span></td>
+              <td>{a.deadline?new Date(a.deadline).toLocaleString():'None'}</td>
+              <td><Status value={a.status}/></td>
+              <td className="table-actions">
+                <Link to={'/'+role+'/assignments/'+a.id+'/edit'}>Edit / tests</Link>
+                <button disabled={busy===a.id} onClick={()=>toggle(a)}>{a.status==='ACTIVE'?'Deactivate':'Activate'}</button>
+                <button disabled={busy===a.id} className="secondary-button" onClick={()=>remove(a)} title="Delete assignment">Delete</button>
+              </td>
+            </tr>)}
+            {list.length === 0 && (
+              <tr><td colSpan={6} style={{textAlign: 'center', color: '#64748b'}}>No assignments available. Click "+ New assignment" above to create one.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </DataState>
+  </>
 }
 export function FacultyExperimentForm() {
   const {id}=useParams(),navigate=useNavigate(),{profile}=useAuth()
@@ -35,31 +127,115 @@ export function FacultyExperimentForm() {
   const {data:tests,reload}=useRemote(assignmentTests,testKey)
   const [form,setForm]=useState(null),[busy,setBusy]=useState(false),[failure,setFailure]=useState('')
   const [testForm,setTestForm]=useState(null),[testError,setTestError]=useState(''),[testBusy,setTestBusy]=useState(false)
-  useEffect(()=>{if(data)setForm({...data,...Object.fromEntries(['instructions','requirements','constraints','networkingConcepts'].map(key=>[key,data[key].join('\n')])),deadline:data.deadline?new Date(data.deadline).toISOString().slice(0,16):''})},[data])
+
+  useEffect(()=>{
+    if(data) {
+      setForm({
+        ...data,
+        ...Object.fromEntries(
+          ['instructions','requirements','constraints','networkingConcepts'].map(key => [
+            key,
+            Array.isArray(data[key]) ? data[key].join('\n') : (typeof data[key] === 'string' ? data[key] : '')
+          ])
+        ),
+        deadline: data.deadline ? new Date(data.deadline).toISOString().slice(0,16) : ''
+      })
+    }
+  },[data])
+
   function change(e){setForm(current=>({...current,[e.target.name]:e.target.value}))}
+
   async function submit(e){
     e.preventDefault();setBusy(true);setFailure('')
-    const payload={...form,...Object.fromEntries(['instructions','requirements','constraints','networkingConcepts'].map(key=>[key,form[key].split('\n').map(s=>s.trim()).filter(Boolean)])),deadline:form.deadline?new Date(form.deadline+'Z').toISOString():null}
-    try{await updateExperiment(id,payload,role);navigate('/'+role+'/assignments')}catch(e){setFailure(e.message)}finally{setBusy(false)}
+    const payload={
+      ...form,
+      ...Object.fromEntries(
+        ['instructions','requirements','constraints','networkingConcepts'].map(key => [
+          key,
+          form[key].split('\n').map(s=>s.trim()).filter(Boolean)
+        ])
+      ),
+      deadline: form.deadline ? new Date(form.deadline).toISOString() : null
+    }
+    try{
+      await updateExperiment(id,payload,role)
+      navigate('/'+role+'/assignments')
+    }catch(e){setFailure(e.message)}finally{setBusy(false)}
   }
+
   async function testSubmit(e){
     e.preventDefault();setTestBusy(true);setTestError('')
     try{
       const configuration=JSON.parse(testForm.configuration)
       await saveTest(id,{...testForm,weight:Number(testForm.weight),configuration},role)
-      setTestForm(null);reload()
+      setTestForm(null)
+      reload()
     }catch(e){setTestError(e.message)}finally{setTestBusy(false)}
   }
-  const editTest=test=>{setTestError('');setTestForm({...test,configuration:JSON.stringify(test.configuration,null,2)})}
-  return <><Link className="back-link" to={'/'+role+'/assignments'}><ArrowLeft size={16}/> Assignments</Link><Header title="Edit assignment and evaluation" description="Changes are stored in PostgreSQL and applied to future executions."/><DataState loading={loading} error={error}>{form&&<form className="content-card experiment-form" onSubmit={submit}>
-    <label>Title<input required name="title" maxLength={160} value={form.title} onChange={change}/></label>
-    {['description','objective','expectedBehavior','requirements','constraints','instructions','networkingConcepts'].map(key=><label key={key}>{({expectedBehavior:'Expected behavior',networkingConcepts:'Networking concepts'})[key]||key[0].toUpperCase()+key.slice(1)}{['requirements','constraints','instructions','networkingConcepts'].includes(key)&&<small>One item per line</small>}<textarea required name={key} value={form[key]} onChange={change} rows={3} maxLength={10000}/></label>)}
-    <div className="form-row"><label>Difficulty<select name="difficulty" value={form.difficulty} onChange={change}>{['EASY','MEDIUM','HARD'].map(value=><option key={value}>{value}</option>)}</select></label><label>Deadline (UTC)<input type="datetime-local" name="deadline" value={form.deadline} onChange={change}/></label></div>
-    {failure&&<p className="form-error" role="alert">{failure}</p>}<button className="primary-button" disabled={busy}>{busy?'Saving…':'Save assignment'}</button>
-  </form>}</DataState>
-  <section className="content-card"><div className="section-heading"><h2>Automated test cases</h2><button className="secondary-button" onClick={()=>editTest({name:'',weight:10,enabled:true,configuration:{input:{}}})}>Add test case</button></div><p>Input JSON is passed to solve(input). Each verdict is verified against actual network traffic. The final score uses the enabled test weights.</p><div className="table-wrap"><table><thead><tr><th>Name</th><th>Weight</th><th>Status</th><th>Configuration</th><th></th></tr></thead><tbody>{tests?.map(t=><tr key={t.id}><td>{t.name}</td><td>{t.weight}</td><td>{t.enabled?'Enabled':'Disabled'}</td><td><code>{JSON.stringify(t.configuration)}</code></td><td><button onClick={()=>editTest(t)}>Edit test</button></td></tr>)}</tbody></table></div>
-  {testForm&&<form className="experiment-form test-editor" onSubmit={testSubmit}><h3>{testForm.id?'Edit test case':'New test case'}</h3><label>Test name<input required maxLength={255} value={testForm.name} onChange={e=>setTestForm({...testForm,name:e.target.value})}/></label><label>Weight<input type="number" min={1} max={100} required value={testForm.weight} onChange={e=>setTestForm({...testForm,weight:e.target.value})}/></label><label>Test configuration JSON<textarea className="code-editor" rows={6} required value={testForm.configuration} onChange={e=>setTestForm({...testForm,configuration:e.target.value})}/></label><label className="checkbox-label"><input type="checkbox" checked={testForm.enabled} onChange={e=>setTestForm({...testForm,enabled:e.target.checked})}/> Enabled</label>{testError&&<p className="form-error" role="alert">{testError}</p>}<div className="terminal-actions"><button className="primary-button" disabled={testBusy}>{testBusy?'Saving…':'Save test case'}</button><button type="button" className="secondary-button" onClick={()=>setTestForm(null)}>Cancel</button></div></form>}
-  </section></>
+
+  const editTest=test=>{setTestError('');setTestForm({...test,configuration:JSON.stringify(test.configuration || { input: {} },null,2)})}
+
+  const validTests = Array.isArray(tests) ? tests : []
+
+  return <>
+    <Link className="back-link" to={'/'+role+'/assignments'}><ArrowLeft size={16}/> Assignments</Link>
+    <Header title="Edit assignment and evaluation" description="Changes are stored in PostgreSQL and applied to future executions."/>
+    <DataState loading={loading} error={error}>
+      {form&&<form className="content-card experiment-form" onSubmit={submit}>
+        <label>Title<input required name="title" maxLength={160} value={form.title} onChange={change}/></label>
+        {['description','objective','expectedBehavior','requirements','constraints','instructions','networkingConcepts'].map(key=><label key={key}>
+          {({expectedBehavior:'Expected behavior',networkingConcepts:'Networking concepts'})[key]||key[0].toUpperCase()+key.slice(1)}
+          {['requirements','constraints','instructions','networkingConcepts'].includes(key)&&<small>One item per line</small>}
+          <textarea required name={key} value={form[key] || ''} onChange={change} rows={3} maxLength={10000}/>
+        </label>)}
+        <div className="form-row">
+          <label>Difficulty<select name="difficulty" value={form.difficulty} onChange={change}>{['EASY','MEDIUM','HARD'].map(value=><option key={value}>{value}</option>)}</select></label>
+          <label>Deadline<input type="datetime-local" name="deadline" value={form.deadline} onChange={change}/></label>
+        </div>
+        {failure&&<p className="form-error" role="alert">{failure}</p>}
+        <button className="primary-button" disabled={busy}>{busy?'Saving…':'Save assignment'}</button>
+      </form>}
+    </DataState>
+
+    <section className="content-card">
+      <div className="section-heading">
+        <h2>Automated test cases</h2>
+        <button className="secondary-button" onClick={()=>editTest({name:'',weight:10,enabled:true,configuration:{input:{}}})}>Add test case</button>
+      </div>
+      <p>Input JSON is passed to solve(input). Each verdict is verified against actual network traffic. The final score uses the enabled test weights.</p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Weight</th><th>Status</th><th>Configuration</th><th></th></tr>
+          </thead>
+          <tbody>
+            {validTests.map(t=><tr key={t.id}>
+              <td><strong>{t.name}</strong></td>
+              <td>{t.weight}</td>
+              <td><span className={t.enabled ? 'badge badge-success' : 'badge badge-muted'}>{t.enabled?'Enabled':'Disabled'}</span></td>
+              <td><code>{JSON.stringify(t.configuration)}</code></td>
+              <td><button className="secondary-button" onClick={()=>editTest(t)}>Edit test</button></td>
+            </tr>)}
+            {validTests.length === 0 && (
+              <tr><td colSpan={5} style={{textAlign: 'center', color: '#64748b'}}>No test cases configured yet. Click "Add test case" above.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {testForm&&<form className="experiment-form test-editor" onSubmit={testSubmit}>
+        <h3>{testForm.id?'Edit test case':'New test case'}</h3>
+        <label>Test name<input required maxLength={255} value={testForm.name} onChange={e=>setTestForm({...testForm,name:e.target.value})}/></label>
+        <label>Weight<input type="number" min={1} max={100} required value={testForm.weight} onChange={e=>setTestForm({...testForm,weight:e.target.value})}/></label>
+        <label>Test configuration JSON<textarea className="code-editor" rows={6} required value={testForm.configuration} onChange={e=>setTestForm({...testForm,configuration:e.target.value})}/></label>
+        <label className="checkbox-label"><input type="checkbox" checked={testForm.enabled} onChange={e=>setTestForm({...testForm,enabled:e.target.checked})}/> Enabled</label>
+        {testError&&<p className="form-error" role="alert">{testError}</p>}
+        <div className="terminal-actions">
+          <button className="primary-button" disabled={testBusy}>{testBusy?'Saving…':'Save test case'}</button>
+          <button type="button" className="secondary-button" onClick={()=>setTestForm(null)}>Cancel</button>
+        </div>
+      </form>}
+    </section>
+  </>
 }
 function AttemptsTable({data=[]}) {
   return data.length?<div className="table-wrap"><table><thead><tr><th>Student</th><th>Assignment</th><th>Attempt</th><th>Status</th><th>Started</th><th>Score</th><th></th></tr></thead><tbody>{data.map(a=><tr key={a.id}><td>{a.studentName}</td><td>{a.assignmentTitle}</td><td>{a.attemptNumber}</td><td><Status value={a.status}/></td><td>{new Date(a.startedAt).toLocaleString()}</td><td>{a.automatedScore??'—'}</td><td><Link to={'/faculty/sessions/'+a.id}>Inspect work</Link></td></tr>)}</tbody></table></div>:<div className="state-card">No attempts found.</div>
