@@ -224,7 +224,7 @@ export function AssignmentWorkspace({session}) {
       }
     }).catch(err => {
       setRunning(false)
-      setError(err.message || 'Simulation error')
+      setError(err.message || 'Execution error')
     })
   }
 

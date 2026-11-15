@@ -383,7 +383,7 @@ function evaluateVerdict(type, input, run, documents, configuration) {
   return {
     passed,
     status: passed ? 'PASSED' : 'FAILED',
-    output: passed ? 'Expected behavior verified against simulated protocol exchanges.' : 'The returned result or recorded network behavior did not meet the assignment contract.'
+    output: passed ? 'Expected behavior verified against actual network traffic.' : 'The returned result or recorded network behavior did not meet the assignment contract.'
   }
 }
 

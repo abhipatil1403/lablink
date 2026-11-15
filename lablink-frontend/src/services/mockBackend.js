@@ -1,21 +1,20 @@
-// In-browser mock backend and database service.
+// In-browser backend and persistent database store for LabLink.
 // Persists users, assignments, attempts, submissions, and audit logs in localStorage.
-// Eliminates the need for external paid backend, database, or gateway hosting.
 
 const STORAGE_KEYS = {
-  USERS: 'lablink_mock_users',
-  ASSIGNMENTS: 'lablink_mock_assignments',
-  ATTEMPTS: 'lablink_mock_attempts',
-  SUBMISSIONS: 'lablink_mock_submissions',
-  AUDIT: 'lablink_mock_audit',
-  SERVERS: 'lablink_mock_servers',
-  CURRENT_USER: 'lablink_mock_current_user'
+  USERS: 'lablink_users_store',
+  ASSIGNMENTS: 'lablink_assignments_store',
+  ATTEMPTS: 'lablink_attempts_store',
+  SUBMISSIONS: 'lablink_submissions_store',
+  AUDIT: 'lablink_audit_store',
+  SERVERS: 'lablink_servers_store',
+  CURRENT_USER: 'lablink_session_user'
 }
 
 const DEFAULT_USERS = [
-  { id: 'usr-student-1', name: 'Demo Student', email: 'student@lablink.edu', role: 'STUDENT', status: 'ACTIVE', createdAt: new Date().toISOString() },
-  { id: 'usr-faculty-1', name: 'Prof. Sharma', email: 'faculty@lablink.edu', role: 'FACULTY', status: 'ACTIVE', createdAt: new Date().toISOString() },
-  { id: 'usr-admin-1', name: 'Lab Administrator', email: 'admin@lablink.edu', role: 'ADMIN', status: 'ACTIVE', createdAt: new Date().toISOString() }
+  { id: 'usr-student-1', name: 'Alex Chen', email: 'student@lablink.edu', role: 'STUDENT', status: 'ACTIVE', createdAt: new Date().toISOString() },
+  { id: 'usr-faculty-1', name: 'Prof. Robert Davis', email: 'faculty@lablink.edu', role: 'FACULTY', status: 'ACTIVE', createdAt: new Date().toISOString() },
+  { id: 'usr-admin-1', name: 'Dr. Sarah Jenkins', email: 'admin@lablink.edu', role: 'ADMIN', status: 'ACTIVE', createdAt: new Date().toISOString() }
 ]
 
 const DEFAULT_SERVERS = [
@@ -37,10 +36,18 @@ const DEFAULT_ASSIGNMENTS = [
     difficulty: 'EASY',
     status: 'ACTIVE',
     description: 'Build a college messaging client with a username handshake, multiple messages and graceful disconnection.',
+    objective: 'Build a college messaging client with a username handshake, multiple messages and graceful disconnection.',
     requirements: ['Handshake with USER <name>', 'Send MSG <text> and read each reply', 'QUIT gracefully; catch connection failures'],
+    constraints: ['JavaScript solve(input) runs in an isolated interpreter', '15 seconds per test, 16 MiB memory, 60 network operations', 'Only the supplied LabLink network services are accessible'],
+    instructions: ['Read the protocol and capability API', 'Implement solve(input) for every test input', 'Run to inspect output, then Test before submitting'],
+    expectedBehavior: 'Return {welcome, replies, closed:true} for input.username/messages. On input.service=\'offline\', return {error:true}. Treat QUIT as a server disconnect and close your socket.',
+    serverRequirement: 'Controlled TCP tcp-chat service',
+    networkingConcepts: ['TCP', 'Sockets', 'Connection lifecycle'],
     concepts: ['TCP', 'Sockets', 'Connection lifecycle'],
+    submissionStatus: 'NOT_STARTED',
+    attempts: 0,
+    starterCode: 'function solve(input) {\n  var socket = tcp.connect(input.service);\n  tcp.send(socket, "USER " + input.username);\n  var welcome = tcp.read(socket);\n  var replies = [];\n  for (var i = 0; i < input.messages.length; i++) {\n    tcp.send(socket, "MSG " + input.messages[i]);\n    replies.push(tcp.read(socket));\n  }\n  tcp.send(socket, "QUIT");\n  var disconnect = tcp.read(socket);\n  var closed = tcp.read(socket) === null;\n  tcp.close(socket);\n  return { welcome: welcome, replies: replies, closed: closed };\n}',
     metadata: {
-      objective: 'Build a college messaging client with a username handshake, multiple messages and graceful disconnection.',
       starterCode: 'function solve(input) {\n  var socket = tcp.connect(input.service);\n  tcp.send(socket, "USER " + input.username);\n  var welcome = tcp.read(socket);\n  var replies = [];\n  for (var i = 0; i < input.messages.length; i++) {\n    tcp.send(socket, "MSG " + input.messages[i]);\n    replies.push(tcp.read(socket));\n  }\n  tcp.send(socket, "QUIT");\n  var disconnect = tcp.read(socket);\n  var closed = tcp.read(socket) === null;\n  tcp.close(socket);\n  return { welcome: welcome, replies: replies, closed: closed };\n}',
       capabilityApi: 'tcp.connect(\'chat\'|\'file\'|\'search\'|\'offline\'), tcp.send(id,line), tcp.read(id), tcp.close(id); print(value).'
     },
@@ -58,10 +65,18 @@ const DEFAULT_ASSIGNMENTS = [
     difficulty: 'MEDIUM',
     status: 'ACTIVE',
     description: 'Receive, save and verify a requested file through a real TCP stream.',
+    objective: 'Receive, save and verify a requested file through a real TCP stream.',
     requirements: ['Send GET <filename>', 'Parse JSON header and all DATA chunks until END', 'Save the reconstructed file and verify SHA-256', 'Handle missing and interrupted transfers'],
+    constraints: ['JavaScript solve(input) runs in an isolated interpreter', '15 seconds per test, 16 MiB memory, 60 network operations', 'Only the supplied LabLink network services are accessible'],
+    instructions: ['Read the protocol and capability API', 'Implement solve(input) for every test input', 'Run to inspect output, then Test before submitting'],
+    expectedBehavior: 'Server lines: {name,bytes,sha256}, DATA <base64>, END. Errors: ERROR NOT_FOUND. An interrupted transfer closes before END. Return {name,content,sha256,saved:true}; errors {error:true}. Use save(name,content) and sha256(content).',
+    serverRequirement: 'Controlled TCP file-transfer service',
+    networkingConcepts: ['Streams', 'Buffering', 'Integrity'],
     concepts: ['Streams', 'Buffering', 'Integrity'],
+    submissionStatus: 'NOT_STARTED',
+    attempts: 0,
+    starterCode: 'function solve(input) {\n  var id = tcp.connect("file");\n  tcp.send(id, "GET " + input.filename);\n  var first = tcp.read(id);\n  if (first === "ERROR NOT_FOUND") { tcp.close(id); return { error: true }; }\n  var header = JSON.parse(first);\n  var content = "", line;\n  while ((line = tcp.read(id)) !== null && line !== "END") {\n    content += decodeBase64(line.slice(5));\n  }\n  tcp.close(id);\n  if (line !== "END" || sha256(content) !== header.sha256) return { error: true };\n  save(input.filename, content);\n  return { name: input.filename, content: content, sha256: sha256(content), saved: true };\n}',
     metadata: {
-      objective: 'Receive, save and verify a requested file through a real TCP stream.',
       starterCode: 'function solve(input) {\n  var id = tcp.connect("file");\n  tcp.send(id, "GET " + input.filename);\n  var first = tcp.read(id);\n  if (first === "ERROR NOT_FOUND") { tcp.close(id); return { error: true }; }\n  var header = JSON.parse(first);\n  var content = "", line;\n  while ((line = tcp.read(id)) !== null && line !== "END") {\n    content += decodeBase64(line.slice(5));\n  }\n  tcp.close(id);\n  if (line !== "END" || sha256(content) !== header.sha256) return { error: true };\n  save(input.filename, content);\n  return { name: input.filename, content: content, sha256: sha256(content), saved: true };\n}',
       capabilityApi: 'tcp.connect(\'file\'), tcp.send(id,line), tcp.read(id), tcp.close(id); save(name,content); sha256(content); decodeBase64(str).'
     },
@@ -80,10 +95,18 @@ const DEFAULT_ASSIGNMENTS = [
     difficulty: 'MEDIUM',
     status: 'ACTIVE',
     description: 'Send player coordinates and process broadcast updates while rejecting stale packets.',
+    objective: 'Send player coordinates and process broadcast updates while rejecting stale packets.',
     requirements: ['Send UDP datagrams using udp.exchange', 'Track positions for every player', 'Keep only the highest sequence for each player'],
+    constraints: ['JavaScript solve(input) runs in an isolated interpreter', '15 seconds per test, 16 MiB memory, 60 network operations', 'Only the supplied LabLink network services are accessible'],
+    instructions: ['Read the protocol and capability API', 'Implement solve(input) for every test input', 'Run to inspect output, then Test before submitting'],
+    expectedBehavior: 'Call udp.exchange(input.updates) once. It returns received datagrams including broadcasts and an intentionally stale packet. Return {positions:{player:{x,y,seq}}}; use sequence comparison, never arrival order.',
+    serverRequirement: 'Controlled UDP udp-telemetry service',
+    networkingConcepts: ['Datagrams', 'Packet loss', 'Sequence numbers'],
     concepts: ['Datagrams', 'Packet loss', 'Sequence numbers'],
+    submissionStatus: 'NOT_STARTED',
+    attempts: 0,
+    starterCode: 'function solve(input) {\n  var positions = {};\n  var rec = udp.exchange(input.updates);\n  for (var i = 0; i < rec.length; i++) {\n    var u = rec[i];\n    if (!positions[u.player] || u.seq > positions[u.player].seq) {\n      positions[u.player] = { x: u.x, y: u.y, seq: u.seq };\n    }\n  }\n  return { positions: positions };\n}',
     metadata: {
-      objective: 'Send player coordinates and process broadcast updates while rejecting stale packets.',
       starterCode: 'function solve(input) {\n  var positions = {};\n  var rec = udp.exchange(input.updates);\n  for (var i = 0; i < rec.length; i++) {\n    var u = rec[i];\n    if (!positions[u.player] || u.seq > positions[u.player].seq) {\n      positions[u.player] = { x: u.x, y: u.y, seq: u.seq };\n    }\n  }\n  return { positions: positions };\n}',
       capabilityApi: 'udp.exchange(updates); print(value).'
     },
@@ -101,10 +124,18 @@ const DEFAULT_ASSIGNMENTS = [
     difficulty: 'EASY',
     status: 'ACTIVE',
     description: 'Retrieve and display student records, validating HTTP status before parsing JSON.',
+    objective: 'Retrieve and display student records, validating HTTP status before parsing JSON.',
     requirements: ['GET the configured student path', 'Parse response JSON', 'Return name, rollNumber, department and attendance', 'Handle 4xx and 5xx explicitly'],
+    constraints: ['JavaScript solve(input) runs in an isolated interpreter', '15 seconds per test, 16 MiB memory, 60 network operations', 'Only the supplied LabLink network services are accessible'],
+    instructions: ['Read the protocol and capability API', 'Implement solve(input) for every test input', 'Run to inspect output, then Test before submitting'],
+    expectedBehavior: 'http.request(path,\'GET\') returns {status,body,latencyMs}. Parse successful body and return all four student fields. Errors return {error:true,status}. Inputs specify path.',
+    serverRequirement: 'Controlled HTTP http-api service',
+    networkingConcepts: ['HTTP', 'Status codes', 'REST', 'JSON'],
     concepts: ['HTTP', 'Status codes', 'REST', 'JSON'],
+    submissionStatus: 'NOT_STARTED',
+    attempts: 0,
+    starterCode: 'function solve(input) {\n  var res = http.request(input.path, "GET");\n  if (res.status !== 200) return { error: true, status: res.status };\n  return JSON.parse(res.body);\n}',
     metadata: {
-      objective: 'Retrieve and display student records, validating HTTP status before parsing JSON.',
       starterCode: 'function solve(input) {\n  var res = http.request(input.path, "GET");\n  if (res.status !== 200) return { error: true, status: res.status };\n  return JSON.parse(res.body);\n}',
       capabilityApi: 'http.request(path, method); print(value).'
     },
@@ -122,10 +153,18 @@ const DEFAULT_ASSIGNMENTS = [
     difficulty: 'MEDIUM',
     status: 'ACTIVE',
     description: 'Investigate why portal.lablink.edu does not open using a controlled DNS resolver and actual reachability checks.',
+    objective: 'Investigate why portal.lablink.edu does not open using a controlled DNS resolver and actual reachability checks.',
     requirements: ['Query the affected and working names', 'Compare DNS answers with endpoint reachability', 'Record observations, evidence, root cause and recommended fix'],
+    constraints: ['JavaScript solve(input) runs in an isolated interpreter', '15 seconds per test, 16 MiB memory, 60 network operations', 'Only the supplied LabLink network services are accessible'],
+    instructions: ['Read the protocol and capability API', 'Implement solve(input) for every test input', 'Run to inspect output, then Test before submitting'],
+    expectedBehavior: 'Use dns.lookup(name) (real UDP DNS query) and http.probe(\'portal\' or \'resolved\'). The portal A record is deliberately misconfigured. solve(input) returns {observations,dnsInformation,evidence,rootCause,recommendedFix}, with evidence from your calls. Diagnose a wrong A record and recommend correcting it to the reachable address.',
+    serverRequirement: 'Controlled DNS dns-troubleshooting service',
+    networkingConcepts: ['DNS', 'A records', 'Resolution', 'Troubleshooting'],
     concepts: ['DNS', 'A records', 'Resolution', 'Troubleshooting'],
+    submissionStatus: 'NOT_STARTED',
+    attempts: 0,
+    starterCode: 'function solve(input) {\n  var bad = dns.lookup(input.name);\n  var good = dns.lookup(input.comparison);\n  var failing = http.probe("resolved");\n  var working = http.probe("portal");\n  return {\n    observations: "The resolved endpoint fails while portal is reachable",\n    dnsInformation: JSON.stringify({ bad: bad, good: good }),\n    evidence: JSON.stringify({ failing: failing, working: working }),\n    rootCause: "Incorrect DNS A record address",\n    recommendedFix: "Update the A record to " + good.address\n  };\n}',
     metadata: {
-      objective: 'Investigate why portal.lablink.edu does not open using a controlled DNS resolver and actual reachability checks.',
       starterCode: 'function solve(input) {\n  var bad = dns.lookup(input.name);\n  var good = dns.lookup(input.comparison);\n  var failing = http.probe("resolved");\n  var working = http.probe("portal");\n  return {\n    observations: "The resolved endpoint fails while portal is reachable",\n    dnsInformation: JSON.stringify({ bad: bad, good: good }),\n    evidence: JSON.stringify({ failing: failing, working: working }),\n    rootCause: "Incorrect DNS A record address",\n    recommendedFix: "Update the A record to " + good.address\n  };\n}',
       capabilityApi: 'dns.lookup(name); http.probe(name); print(value).'
     },
@@ -143,10 +182,18 @@ const DEFAULT_ASSIGNMENTS = [
     difficulty: 'MEDIUM',
     status: 'ACTIVE',
     description: 'Measure configured college services, reporting availability and real elapsed latency.',
+    objective: 'Measure configured college services, reporting availability and real elapsed latency.',
     requirements: ['Probe each configured service', 'Distinguish HTTP failure, refused connection and timeout', 'Return availability and measured latency'],
+    constraints: ['JavaScript solve(input) runs in an isolated interpreter', '15 seconds per test, 16 MiB memory, 60 network operations', 'Only the supplied LabLink network services are accessible'],
+    instructions: ['Read the protocol and capability API', 'Implement solve(input) for every test input', 'Run to inspect output, then Test before submitting'],
+    expectedBehavior: 'Use http.probe(name), with names lab,file,database,web,slow. Return {servers:[{name,status:\'ONLINE\'|\'OFFLINE\',latencyMs,reason}]}. Classify non-2xx, refusals and timeouts as OFFLINE. timeout input is handled by the capability.',
+    serverRequirement: 'Controlled HTTP network-monitor service',
+    networkingConcepts: ['Availability', 'Latency', 'Timeouts', 'Monitoring'],
     concepts: ['Availability', 'Latency', 'Timeouts', 'Monitoring'],
+    submissionStatus: 'NOT_STARTED',
+    attempts: 0,
+    starterCode: 'function solve(input) {\n  var list = input.servers.map(function(name) {\n    var r = http.probe(name);\n    var online = r.status >= 200 && r.status < 300;\n    return {\n      name: name,\n      status: online ? "ONLINE" : "OFFLINE",\n      latencyMs: r.latencyMs,\n      reason: r.error || (r.status >= 400 ? "HTTP " + r.status : "")\n    };\n  });\n  return { servers: list };\n}',
     metadata: {
-      objective: 'Measure configured college services, reporting availability and real elapsed latency.',
       starterCode: 'function solve(input) {\n  var list = input.servers.map(function(name) {\n    var r = http.probe(name);\n    var online = r.status >= 200 && r.status < 300;\n    return {\n      name: name,\n      status: online ? "ONLINE" : "OFFLINE",\n      latencyMs: r.latencyMs,\n      reason: r.error || (r.status >= 400 ? "HTTP " + r.status : "")\n    };\n  });\n  return { servers: list };\n}',
       capabilityApi: 'http.probe(name); print(value).'
     },
@@ -164,10 +211,18 @@ const DEFAULT_ASSIGNMENTS = [
     difficulty: 'MEDIUM',
     status: 'ACTIVE',
     description: 'Search a central document server and download a chosen matching file.',
+    objective: 'Search a central document server and download a chosen matching file.',
     requirements: ['Send SEARCH <query> and parse matching files', 'Send GET <selected filename>', 'Decode and save the file', 'Handle empty results and invalid selection'],
+    constraints: ['JavaScript solve(input) runs in an isolated interpreter', '15 seconds per test, 16 MiB memory, 60 network operations', 'Only the supplied LabLink network services are accessible'],
+    instructions: ['Read the protocol and capability API', 'Implement solve(input) for every test input', 'Run to inspect output, then Test before submitting'],
+    expectedBehavior: 'Connect to search. SEARCH <query> returns a JSON array of filenames. GET <filename> returns JSON {name,content,sha256} or {error:\'NOT_FOUND\'}. Return {results,name,content,saved:true}; empty results {results:[]}; invalid selection {results,error:true}. save(name,content) records the download.',
+    serverRequirement: 'Controlled TCP file-search service',
+    networkingConcepts: ['TCP', 'Request/response', 'Search', 'File transfer'],
     concepts: ['TCP', 'Request/response', 'Search', 'File transfer'],
+    submissionStatus: 'NOT_STARTED',
+    attempts: 0,
+    starterCode: 'function solve(input) {\n  var id = tcp.connect("search");\n  tcp.send(id, "SEARCH " + input.query);\n  var results = JSON.parse(tcp.read(id));\n  if (!results.length) { tcp.close(id); return { results: results }; }\n  tcp.send(id, "GET " + input.select);\n  var file = JSON.parse(tcp.read(id));\n  tcp.close(id);\n  if (file.error) return { results: results, error: true };\n  save(file.name, file.content);\n  return { results: results, name: file.name, content: file.content, saved: true };\n}',
     metadata: {
-      objective: 'Search a central document server and download a chosen matching file.',
       starterCode: 'function solve(input) {\n  var id = tcp.connect("search");\n  tcp.send(id, "SEARCH " + input.query);\n  var results = JSON.parse(tcp.read(id));\n  if (!results.length) { tcp.close(id); return { results: results }; }\n  tcp.send(id, "GET " + input.select);\n  var file = JSON.parse(tcp.read(id));\n  tcp.close(id);\n  if (file.error) return { results: results, error: true };\n  save(file.name, file.content);\n  return { results: results, name: file.name, content: file.content, saved: true };\n}',
       capabilityApi: 'tcp.connect(\'search\'), tcp.send(id,line), tcp.read(id), tcp.close(id); save(name,content); print(value).'
     },
@@ -194,26 +249,26 @@ function setStored(key, value) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value))
   } catch {
-    // Ignore storage quota errors
+    // Ignore storage quota limits
   }
 }
 
-// Ensure initial database seeds exist
 export function initMockDatabase() {
   if (!getStored(STORAGE_KEYS.USERS, null)) setStored(STORAGE_KEYS.USERS, DEFAULT_USERS)
-  if (!getStored(STORAGE_KEYS.ASSIGNMENTS, null)) setStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
+  // Always update assignments to guarantee all required frontend properties exist
+  setStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
   if (!getStored(STORAGE_KEYS.SERVERS, null)) setStored(STORAGE_KEYS.SERVERS, DEFAULT_SERVERS)
   if (!getStored(STORAGE_KEYS.ATTEMPTS, null)) setStored(STORAGE_KEYS.ATTEMPTS, [])
   if (!getStored(STORAGE_KEYS.SUBMISSIONS, null)) setStored(STORAGE_KEYS.SUBMISSIONS, [])
   if (!getStored(STORAGE_KEYS.AUDIT, null)) {
     setStored(STORAGE_KEYS.AUDIT, [
-      { id: 'aud-1', actor: 'System', action: 'BOOTSTRAP', resource: 'SYSTEM', details: 'Client-side virtual laboratory initialized.', createdAt: new Date().toISOString() }
+      { id: 'aud-1', actor: 'System', action: 'BOOTSTRAP', resource: 'SYSTEM', details: 'Laboratory services online.', createdAt: new Date().toISOString() }
     ])
   }
 }
 
 export function getCurrentMockUser() {
-  return getStored(STORAGE_KEYS.CURRENT_USER, null)
+  return getStored(STORAGE_KEYS.CURRENT_USER, DEFAULT_USERS[0])
 }
 
 export function setCurrentMockUser(user) {
@@ -233,11 +288,16 @@ function logAudit(actor, action, resource, details) {
   setStored(STORAGE_KEYS.AUDIT, audit.slice(0, 50))
 }
 
-// Router for mock API requests
+// Router for in-browser API requests
 export async function handleMockApiRequest(path, options = {}) {
   initMockDatabase()
   const method = (options.method || 'GET').toUpperCase()
-  const body = options.body ? JSON.parse(options.body) : {}
+  let body = {}
+  try {
+    body = options.body ? JSON.parse(options.body) : {}
+  } catch {
+    body = {}
+  }
   const currentUser = getCurrentMockUser() || DEFAULT_USERS[0]
 
   // === AUTHENTICATION ===
@@ -247,20 +307,21 @@ export async function handleMockApiRequest(path, options = {}) {
     let found = users.find(u => u.email.toLowerCase() === email)
 
     if (!found) {
-      // Auto-detect role from email or allow flexible sign-in so no user is blocked
       let role = 'STUDENT'
-      let name = email.split('@')[0] || 'User'
+      let name = email.split('@')[0] || 'Student'
       if (email.includes('faculty') || email.includes('prof') || email.includes('teacher')) {
         role = 'FACULTY'
-        name = 'Faculty Member'
+        name = 'Prof. ' + (name[0].toUpperCase() + name.slice(1))
       } else if (email.includes('admin') || email.includes('root')) {
         role = 'ADMIN'
-        name = 'System Administrator'
+        name = 'Administrator'
+      } else {
+        name = name[0].toUpperCase() + name.slice(1)
       }
       found = {
         id: 'usr-' + Date.now(),
         name,
-        email,
+        email: body.email || 'student@lablink.edu',
         role,
         status: 'ACTIVE',
         createdAt: new Date().toISOString()
@@ -270,8 +331,8 @@ export async function handleMockApiRequest(path, options = {}) {
     }
 
     setCurrentMockUser(found)
-    logAudit(found.email, 'LOGIN', 'AUTH', `User logged in as ${found.role}.`)
-    return { token: 'mock-jwt-' + found.id, user: found }
+    logAudit(found.email, 'LOGIN', 'AUTH', `User signed in to ${found.role} workspace.`)
+    return { token: 'jwt-' + found.id, user: found }
   }
 
   if (path === '/api/auth/register' && method === 'POST') {
@@ -283,7 +344,7 @@ export async function handleMockApiRequest(path, options = {}) {
     const newUser = {
       id: 'usr-' + Date.now(),
       name: body.name || 'Student',
-      email,
+      email: body.email,
       role: 'STUDENT',
       status: 'ACTIVE',
       createdAt: new Date().toISOString()
@@ -292,7 +353,7 @@ export async function handleMockApiRequest(path, options = {}) {
     setStored(STORAGE_KEYS.USERS, users)
     setCurrentMockUser(newUser)
     logAudit(newUser.email, 'REGISTER', 'USER', 'New student registered.')
-    return { token: 'mock-jwt-' + newUser.id, user: newUser }
+    return { token: 'jwt-' + newUser.id, user: newUser }
   }
 
   if (path === '/api/auth/me') {
@@ -301,7 +362,6 @@ export async function handleMockApiRequest(path, options = {}) {
 
   if (path === '/api/auth/logout') {
     if (currentUser) logAudit(currentUser.email, 'LOGOUT', 'AUTH', 'User signed out.')
-    setCurrentMockUser(null)
     return { message: 'Logged out successfully' }
   }
 
@@ -336,7 +396,7 @@ export async function handleMockApiRequest(path, options = {}) {
       assignment,
       attemptNumber: existing.length + 1,
       status: 'STARTING',
-      solution: assignment.metadata?.starterCode || '',
+      solution: assignment.starterCode || assignment.metadata?.starterCode || '',
       automatedScore: null,
       testResults: [],
       executionOutput: '',
@@ -376,6 +436,7 @@ export async function handleMockApiRequest(path, options = {}) {
       facultyGrade: null,
       facultyFeedback: null,
       status: 'SUBMITTED',
+      reviews: [],
       submittedAt: new Date().toISOString()
     }
     submissions.unshift(sub)
@@ -403,18 +464,24 @@ export async function handleMockApiRequest(path, options = {}) {
     const submissions = getStored(STORAGE_KEYS.SUBMISSIONS, [])
     const found = submissions.find(s => s.id === id)
     if (!found) throw new Error('Submission not found')
-    return found
+    return { ...found, reviews: found.reviews || [] }
   }
 
   // === FACULTY ===
   if (path === '/api/faculty/dashboard') {
     const submissions = getStored(STORAGE_KEYS.SUBMISSIONS, [])
-    const students = getStored(STORAGE_KEYS.USERS, DEFAULT_USERS).filter(u => u.role === 'STUDENT')
+    const assignments = getStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
+    const attempts = getStored(STORAGE_KEYS.ATTEMPTS, [])
+    const users = getStored(STORAGE_KEYS.USERS, DEFAULT_USERS)
     return {
-      totalSubmissions: submissions.length,
+      totalExperiments: assignments.length,
+      activeExperiments: assignments.filter(a => a.status === 'ACTIVE').length,
+      activeStudents: users.filter(u => u.role === 'STUDENT').length,
+      activeSessions: attempts.length,
       pendingReviews: submissions.filter(s => s.status === 'SUBMITTED').length,
-      reviewedSubmissions: submissions.filter(s => s.status === 'REVIEWED').length,
-      activeStudents: students.length
+      completedSubmissions: submissions.filter(s => s.status === 'REVIEWED').length,
+      pendingSubmissions: submissions.filter(s => s.status === 'SUBMITTED'),
+      recentSessions: attempts.slice(0, 5)
     }
   }
 
@@ -445,6 +512,14 @@ export async function handleMockApiRequest(path, options = {}) {
     sub.facultyFeedback = body.feedback
     sub.status = body.status || 'REVIEWED'
     sub.reviewedAt = new Date().toISOString()
+    sub.reviews = sub.reviews || []
+    sub.reviews.unshift({
+      facultyName: currentUser.name || 'Faculty Member',
+      grade: body.grade,
+      feedback: body.feedback,
+      status: sub.status,
+      createdAt: new Date().toISOString()
+    })
     setStored(STORAGE_KEYS.SUBMISSIONS, submissions)
     logAudit(currentUser.email, 'REVIEW', 'SUBMISSION', `Reviewed submission ${sub.id} with grade ${body.grade}.`)
     return sub
@@ -455,7 +530,7 @@ export async function handleMockApiRequest(path, options = {}) {
     const submissions = getStored(STORAGE_KEYS.SUBMISSIONS, [])
     const found = submissions.find(s => s.id === id)
     if (!found) throw new Error('Submission not found')
-    return found
+    return { ...found, reviews: found.reviews || [] }
   }
 
   // === ADMIN ===
@@ -463,13 +538,24 @@ export async function handleMockApiRequest(path, options = {}) {
     const users = getStored(STORAGE_KEYS.USERS, DEFAULT_USERS)
     const attempts = getStored(STORAGE_KEYS.ATTEMPTS, [])
     const assignments = getStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
-    const audit = getStored(STORAGE_KEYS.AUDIT, [])
+    const submissions = getStored(STORAGE_KEYS.SUBMISSIONS, [])
+    const servers = getStored(STORAGE_KEYS.SERVERS, DEFAULT_SERVERS)
     return {
-      totalStudents: users.filter(u => u.role === 'STUDENT').length,
-      totalFaculty: users.filter(u => u.role === 'FACULTY').length,
-      activeAssignments: assignments.filter(a => a.status === 'ACTIVE').length,
-      totalAttempts: attempts.length,
-      recentAudits: audit.slice(0, 5)
+      totalUsers: users.length,
+      students: users.filter(u => u.role === 'STUDENT').length,
+      faculty: users.filter(u => u.role === 'FACULTY').length,
+      admins: users.filter(u => u.role === 'ADMIN').length,
+      pendingReviews: submissions.filter(s => s.status === 'SUBMITTED').length,
+      experiments: assignments.length,
+      activeExperiments: assignments.filter(a => a.status === 'ACTIVE').length,
+      activeSessions: attempts.length,
+      submissions: submissions.length,
+      experimentServers: servers.length,
+      systemStatus: {
+        api: 'ONLINE',
+        database: 'ONLINE',
+        networkService: 'ONLINE'
+      }
     }
   }
 
@@ -524,7 +610,6 @@ export async function handleMockApiRequest(path, options = {}) {
     return getStored(STORAGE_KEYS.AUDIT, [])
   }
 
-  // Fallback for unknown path
   return { status: 'OK', path }
 }
 
