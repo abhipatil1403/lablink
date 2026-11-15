@@ -339,13 +339,14 @@ tbody tr:last-child td { border: 0; }
 .role-quick-launch { margin: 1.8rem 0 1.2rem; }
 .quick-launch-label { display: block; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; color: #475569; margin-bottom: 0.75rem; text-transform: uppercase; }
 .quick-buttons-row { display: flex; gap: 0.85rem; flex-wrap: wrap; }
-.role-btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.15rem; font-size: 0.85rem; font-weight: 700; border-radius: 8px; text-decoration: none; transition: transform 0.15s ease, box-shadow 0.15s ease; }
-.role-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-.role-btn-student { background: #2563eb; color: #ffffff !important; }
+.role-btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.15rem; font-size: 0.85rem; font-weight: 700; border-radius: 8px; text-decoration: none !important; transition: transform 0.15s ease, box-shadow 0.15s ease; color: #ffffff !important; }
+.role-btn *, .role-btn:visited, .role-btn svg { color: #ffffff !important; fill: currentColor; }
+.role-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); color: #ffffff !important; }
+.role-btn-student { background: #2563eb; }
 .role-btn-student:hover { background: #1d4ed8; }
-.role-btn-faculty { background: #0891b2; color: #ffffff !important; }
+.role-btn-faculty { background: #0891b2; }
 .role-btn-faculty:hover { background: #0e7490; }
-.role-btn-admin { background: #4f46e5; color: #ffffff !important; }
+.role-btn-admin { background: #4f46e5; }
 .role-btn-admin:hover { background: #4338ca; }
 
 /* Header auth shortcuts */
@@ -357,7 +358,12 @@ tbody tr:last-child td { border: 0; }
 .workspace-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .workspace-card-actions { margin-top: auto; display: flex; flex-direction: column; gap: 0.65rem; width: 100%; }
 
-.workspace-action {
+a.workspace-action,
+a.workspace-action:visited,
+.workspace-action,
+.workspace-action:visited,
+.workspace-action span,
+.workspace-action svg {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -375,8 +381,12 @@ tbody tr:last-child td { border: 0; }
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   border: none;
   box-sizing: border-box;
+  fill: currentColor;
 }
-.workspace-action:hover {
+a.workspace-action:hover,
+.workspace-action:hover,
+.workspace-action:hover span,
+.workspace-action:hover svg {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
   color: #ffffff !important;
@@ -403,6 +413,83 @@ tbody tr:last-child td { border: 0; }
 }
 .workspace-action-admin:hover {
   background-color: #4338ca;
+}
+
+/* Credentials helper box on login */
+.credentials-quick-box {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin: 0.5rem 0 1.35rem;
+}
+.credentials-quick-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.credentials-quick-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #475569;
+}
+.credentials-quick-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #15803d;
+  background: #dcfce7;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+.credentials-quick-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  color: #1e293b;
+  margin-bottom: 0.65rem;
+}
+.credentials-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.credentials-field-label {
+  color: #64748b;
+  font-weight: 600;
+  min-width: 65px;
+}
+.credentials-field-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+  color: #0f172a;
+  background: #e2e8f0;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+.credentials-quick-btn {
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.credentials-quick-btn:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e40af;
 }
 
 .workspace-footer-meta {

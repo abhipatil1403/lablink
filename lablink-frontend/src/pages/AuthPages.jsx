@@ -1,10 +1,31 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { FlaskConical, ArrowLeft, ArrowRight } from 'lucide-react'
+import { FlaskConical, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react'
 import { useAuth } from '../authContext'
 import { friendlyAuthError, login, logout, register } from '../services/authService'
 import { dashboardFor, workspaces } from '../workspaces'
 import { NotFoundPage } from './PublicPages'
+
+const MAIN_CREDENTIALS = {
+  student: {
+    name: 'Student',
+    email: 'abhipatil1403@gmail.com',
+    password: '12345678',
+    note: 'Access hands-on socket assignments, automated testing, and execution results.'
+  },
+  faculty: {
+    name: 'Faculty',
+    email: 'abhipersonal1403@gmail.com',
+    password: '12345678',
+    note: 'Access the faculty grading console and student network logs.'
+  },
+  admin: {
+    name: 'Admin',
+    email: 'admin@gmail.com',
+    password: '12345678',
+    note: 'Access system administration, protocol server controls, and user accounts.'
+  }
+}
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -12,19 +33,28 @@ export function LoginPage() {
   const { workspace } = useParams()
   const selected = Object.hasOwn(workspaces, workspace) ? workspaces[workspace] : null
 
-  const defaultEmail = workspace === 'faculty' ? 'faculty@lablink.edu' : workspace === 'admin' ? 'admin@lablink.edu' : 'student@lablink.edu'
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const activeKey = workspace && MAIN_CREDENTIALS[workspace] ? workspace : 'student'
+  const activeCreds = MAIN_CREDENTIALS[activeKey]
+
+  const [email, setEmail] = useState(activeCreds.email)
+  const [password, setPassword] = useState(activeCreds.password)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  // Synchronize inputs when user switches role tabs
+  useEffect(() => {
+    setEmail(activeCreds.email)
+    setPassword(activeCreds.password)
+    setError('')
+  }, [workspace, activeCreds.email, activeCreds.password])
 
   async function submit(event) {
     if (event) event.preventDefault()
     setBusy(true)
     setError('')
     try {
-      const targetEmail = (email || defaultEmail).trim()
-      const targetPassword = password || 'password123'
+      const targetEmail = (email || activeCreds.email).trim()
+      const targetPassword = password || activeCreds.password
       await login(targetEmail, targetPassword)
       const user = await refreshProfile()
       const targetDashboard = dashboardFor(user?.role) || (workspace ? '/' + workspace : '/student')
@@ -36,6 +66,12 @@ export function LoginPage() {
     }
   }
 
+  function handleQuickFill() {
+    setEmail(activeCreds.email)
+    setPassword(activeCreds.password)
+    setError('')
+  }
+
   if (workspace && !selected) return <NotFoundPage />
   if (loading) return <main className="centered-state">Loading LabLink…</main>
   if (profile && dashboardFor(profile.role)) return <Navigate to={dashboardFor(profile.role)} replace />
@@ -45,12 +81,10 @@ export function LoginPage() {
     </AuthLayout>
   )
 
-  const activeRoleName = selected ? selected.name : 'Student'
-
   return (
     <AuthLayout
-      title={activeRoleName + ' Sign In'}
-      description={'Sign in to access your ' + activeRoleName.toLowerCase() + ' laboratory workspace.'}
+      title={activeCreds.name + ' Sign In'}
+      description={'Sign in to access your ' + activeCreds.name.toLowerCase() + ' laboratory workspace.'}
     >
       <nav className="auth-workspaces" aria-label="Choose login workspace">
         {Object.entries(workspaces).map(([key, value]) => (
@@ -60,15 +94,32 @@ export function LoginPage() {
         ))}
       </nav>
 
-      {workspace === 'faculty' && (
-        <p className="auth-account-note">Access the faculty grading console and student network logs.</p>
-      )}
-      {workspace === 'admin' && (
-        <p className="auth-account-note">Access system administration, protocol server controls, and user accounts.</p>
-      )}
-      {(!workspace || workspace === 'student') && (
-        <p className="auth-account-note">Access hands-on socket assignments, automated testing, and execution results.</p>
-      )}
+      <p className="auth-account-note">{activeCreds.note}</p>
+
+      <div className="credentials-quick-box">
+        <div className="credentials-quick-header">
+          <span className="credentials-quick-title">Main {activeCreds.name} Credentials</span>
+          <span className="credentials-quick-badge">Default</span>
+        </div>
+        <div className="credentials-quick-fields">
+          <div className="credentials-field">
+            <span className="credentials-field-label">Email:</span>
+            <span className="credentials-field-value">{activeCreds.email}</span>
+          </div>
+          <div className="credentials-field">
+            <span className="credentials-field-label">Password:</span>
+            <span className="credentials-field-value">12345678</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="credentials-quick-btn"
+          onClick={handleQuickFill}
+          title="Click to auto-fill these credentials into the form"
+        >
+          <Sparkles size={14} aria-hidden="true" /> Auto-fill {activeCreds.name} Credentials
+        </button>
+      </div>
 
       <form onSubmit={submit}>
         <label htmlFor="email">Email address</label>
@@ -76,7 +127,7 @@ export function LoginPage() {
           id="email"
           type="email"
           autoComplete="email"
-          placeholder={defaultEmail}
+          placeholder={activeCreds.email}
           value={email}
           onChange={event => setEmail(event.target.value)}
         />
@@ -85,7 +136,7 @@ export function LoginPage() {
           id="password"
           type="password"
           autoComplete="current-password"
-          placeholder="••••••••"
+          placeholder="12345678"
           value={password}
           onChange={event => setPassword(event.target.value)}
         />
@@ -95,7 +146,7 @@ export function LoginPage() {
           </div>
         )}
         <button className="primary-button" disabled={busy}>
-          {busy ? 'Signing in…' : `Sign in to ${activeRoleName} Workspace`} <ArrowRight size={17} />
+          {busy ? 'Signing in…' : `Sign in to ${activeCreds.name} Workspace`} <ArrowRight size={17} />
         </button>
       </form>
 
@@ -119,6 +170,14 @@ export function RegisterPage() {
 
   async function submit(event) {
     event.preventDefault()
+    if (!name.trim()) {
+      setError('Please enter your full name.')
+      return
+    }
+    if (!email.trim() || !email.includes('@')) {
+      setError('Please enter a valid email address.')
+      return
+    }
     if (password.length < 8) {
       setError('Password must be at least eight characters.')
       return
@@ -130,7 +189,7 @@ export function RegisterPage() {
     setBusy(true)
     setError('')
     try {
-      await register(name.trim(), email, password)
+      await register(name.trim(), email.trim(), password)
       const user = await refreshProfile()
       navigate(dashboardFor(user?.role) || '/student', { replace: true })
     } catch (failure) {
@@ -144,12 +203,13 @@ export function RegisterPage() {
   if (profile && dashboardFor(profile.role)) return <Navigate to={dashboardFor(profile.role)} replace />
 
   return (
-    <AuthLayout title="Create student account" description="Start learning with real network connections.">
+    <AuthLayout title="Create student account" description="Register any name and email to access your student laboratory workspace.">
       <form onSubmit={submit}>
         <label htmlFor="name">Full name</label>
         <input
           id="name"
           autoComplete="name"
+          placeholder="e.g. John Doe"
           maxLength="100"
           required
           value={name}
@@ -160,6 +220,7 @@ export function RegisterPage() {
           id="email"
           type="email"
           autoComplete="email"
+          placeholder="e.g. yourname@gmail.com"
           required
           value={email}
           onChange={event => setEmail(event.target.value)}
@@ -169,6 +230,7 @@ export function RegisterPage() {
           id="password"
           type="password"
           autoComplete="new-password"
+          placeholder="Minimum 8 characters (e.g. 12345678)"
           minLength="8"
           maxLength="72"
           required
@@ -180,13 +242,14 @@ export function RegisterPage() {
           id="confirm"
           type="password"
           autoComplete="new-password"
+          placeholder="Re-enter your password"
           required
           value={confirm}
           onChange={event => setConfirm(event.target.value)}
         />
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-button" disabled={busy}>
-          {busy ? 'Creating account…' : 'Create account'} <ArrowRight size={17} />
+          {busy ? 'Creating account…' : 'Create account & start lab'} <ArrowRight size={17} />
         </button>
       </form>
       <p className="auth-switch">Already have an account? <Link to="/login/student">Log in</Link></p>

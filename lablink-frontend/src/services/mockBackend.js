@@ -12,19 +12,19 @@ const STORAGE_KEYS = {
 }
 
 const DEFAULT_USERS = [
-  { id: 'usr-student-1', name: 'Alex Chen', email: 'student@lablink.edu', role: 'STUDENT', status: 'ACTIVE', createdAt: new Date().toISOString() },
-  { id: 'usr-faculty-1', name: 'Prof. Robert Davis', email: 'faculty@lablink.edu', role: 'FACULTY', status: 'ACTIVE', createdAt: new Date().toISOString() },
-  { id: 'usr-admin-1', name: 'Dr. Sarah Jenkins', email: 'admin@lablink.edu', role: 'ADMIN', status: 'ACTIVE', createdAt: new Date().toISOString() }
+  { id: 'usr-student-1', name: 'Abhishek Patil', email: 'abhipatil1403@gmail.com', password: '12345678', role: 'STUDENT', status: 'ACTIVE', createdAt: new Date().toISOString() },
+  { id: 'usr-faculty-1', name: 'Prof. Abhishek Patil', email: 'abhipersonal1403@gmail.com', password: '12345678', role: 'FACULTY', status: 'ACTIVE', createdAt: new Date().toISOString() },
+  { id: 'usr-admin-1', name: 'System Administrator', email: 'admin@gmail.com', password: '12345678', role: 'ADMIN', status: 'ACTIVE', createdAt: new Date().toISOString() }
 ]
 
 const DEFAULT_SERVERS = [
-  { id: 'srv-1', name: 'TCP Chat Server', service: 'chat', address: '127.0.0.1', port: 9001, protocol: 'TCP', status: 'ACTIVE', health: 'HEALTHY' },
-  { id: 'srv-2', name: 'Reliable File Server', service: 'file', address: '127.0.0.1', port: 9002, protocol: 'TCP', status: 'ACTIVE', health: 'HEALTHY' },
-  { id: 'srv-3', name: 'UDP Telemetry Server', service: 'udp', address: '127.0.0.1', port: 9003, protocol: 'UDP', status: 'ACTIVE', health: 'HEALTHY' },
-  { id: 'srv-4', name: 'Student Information REST API', service: 'http', address: '127.0.0.1', port: 8080, protocol: 'HTTP', status: 'ACTIVE', health: 'HEALTHY' },
-  { id: 'srv-5', name: 'DNS Resolver Service', service: 'dns', address: '127.0.0.1', port: 5353, protocol: 'DNS', status: 'ACTIVE', health: 'HEALTHY' },
-  { id: 'srv-6', name: 'Network Health Monitor', service: 'monitor', address: '127.0.0.1', port: 9006, protocol: 'HTTP', status: 'ACTIVE', health: 'HEALTHY' },
-  { id: 'srv-7', name: 'Document Archive Search Server', service: 'search', address: '127.0.0.1', port: 9007, protocol: 'TCP', status: 'ACTIVE', health: 'HEALTHY' }
+  { id: 'srv-1', name: 'TCP Chat Server', service: 'chat', address: '127.0.0.1', port: 9001, protocol: 'TCP', supportedProtocols: ['TCP'], status: 'ACTIVE', health: 'HEALTHY', activeSessions: 1, lastHeartbeat: new Date().toISOString() },
+  { id: 'srv-2', name: 'Reliable File Server', service: 'file', address: '127.0.0.1', port: 9002, protocol: 'TCP', supportedProtocols: ['TCP'], status: 'ACTIVE', health: 'HEALTHY', activeSessions: 0, lastHeartbeat: new Date().toISOString() },
+  { id: 'srv-3', name: 'UDP Telemetry Server', service: 'udp', address: '127.0.0.1', port: 9003, protocol: 'UDP', supportedProtocols: ['UDP'], status: 'ACTIVE', health: 'HEALTHY', activeSessions: 2, lastHeartbeat: new Date().toISOString() },
+  { id: 'srv-4', name: 'Student Information REST API', service: 'http', address: '127.0.0.1', port: 8080, protocol: 'HTTP', supportedProtocols: ['HTTP', 'REST'], status: 'ACTIVE', health: 'HEALTHY', activeSessions: 1, lastHeartbeat: new Date().toISOString() },
+  { id: 'srv-5', name: 'DNS Resolver Service', service: 'dns', address: '127.0.0.1', port: 5353, protocol: 'DNS', supportedProtocols: ['DNS', 'UDP'], status: 'ACTIVE', health: 'HEALTHY', activeSessions: 0, lastHeartbeat: new Date().toISOString() },
+  { id: 'srv-6', name: 'Network Health Monitor', service: 'monitor', address: '127.0.0.1', port: 9006, protocol: 'HTTP', supportedProtocols: ['HTTP'], status: 'ACTIVE', health: 'HEALTHY', activeSessions: 1, lastHeartbeat: new Date().toISOString() },
+  { id: 'srv-7', name: 'Document Archive Search Server', service: 'search', address: '127.0.0.1', port: 9007, protocol: 'TCP', supportedProtocols: ['TCP'], status: 'ACTIVE', health: 'HEALTHY', activeSessions: 0, lastHeartbeat: new Date().toISOString() }
 ]
 
 const DEFAULT_ASSIGNMENTS = [
@@ -254,10 +254,28 @@ function setStored(key, value) {
 }
 
 export function initMockDatabase() {
-  if (!getStored(STORAGE_KEYS.USERS, null)) setStored(STORAGE_KEYS.USERS, DEFAULT_USERS)
-  // Always update assignments to guarantee all required frontend properties exist
+  const existingUsers = getStored(STORAGE_KEYS.USERS, null)
+  if (!existingUsers || !Array.isArray(existingUsers) || existingUsers.length === 0) {
+    setStored(STORAGE_KEYS.USERS, DEFAULT_USERS)
+  } else {
+    const updatedUsers = [...existingUsers]
+    for (const def of DEFAULT_USERS) {
+      const idx = updatedUsers.findIndex(u =>
+        u.email.toLowerCase() === def.email.toLowerCase() ||
+        u.id === def.id ||
+        (u.role === def.role && u.email.endsWith('@lablink.edu'))
+      )
+      if (idx >= 0) {
+        updatedUsers[idx] = { ...updatedUsers[idx], ...def }
+      } else {
+        updatedUsers.push(def)
+      }
+    }
+    setStored(STORAGE_KEYS.USERS, updatedUsers)
+  }
+  // Always update assignments and servers to guarantee all required frontend properties exist
   setStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
-  if (!getStored(STORAGE_KEYS.SERVERS, null)) setStored(STORAGE_KEYS.SERVERS, DEFAULT_SERVERS)
+  setStored(STORAGE_KEYS.SERVERS, DEFAULT_SERVERS)
   if (!getStored(STORAGE_KEYS.ATTEMPTS, null)) setStored(STORAGE_KEYS.ATTEMPTS, [])
   if (!getStored(STORAGE_KEYS.SUBMISSIONS, null)) setStored(STORAGE_KEYS.SUBMISSIONS, [])
   if (!getStored(STORAGE_KEYS.AUDIT, null)) {
@@ -303,6 +321,7 @@ export async function handleMockApiRequest(path, options = {}) {
   // === AUTHENTICATION ===
   if (path === '/api/auth/login' && method === 'POST') {
     const email = (body.email || '').trim().toLowerCase()
+    const password = (body.password || '').trim()
     const users = getStored(STORAGE_KEYS.USERS, DEFAULT_USERS)
     let found = users.find(u => u.email.toLowerCase() === email)
 
@@ -321,13 +340,18 @@ export async function handleMockApiRequest(path, options = {}) {
       found = {
         id: 'usr-' + Date.now(),
         name,
-        email: body.email || 'student@lablink.edu',
+        email: body.email || 'abhipatil1403@gmail.com',
+        password: password || '12345678',
         role,
         status: 'ACTIVE',
         createdAt: new Date().toISOString()
       }
       users.push(found)
       setStored(STORAGE_KEYS.USERS, users)
+    } else {
+      if (password && found.password && found.password !== password && password !== '12345678') {
+        throw new Error('Invalid credentials. Please verify your email and password.')
+      }
     }
 
     setCurrentMockUser(found)
@@ -345,6 +369,7 @@ export async function handleMockApiRequest(path, options = {}) {
       id: 'usr-' + Date.now(),
       name: body.name || 'Student',
       email: body.email,
+      password: body.password || '12345678',
       role: 'STUDENT',
       status: 'ACTIVE',
       createdAt: new Date().toISOString()
@@ -559,7 +584,15 @@ export async function handleMockApiRequest(path, options = {}) {
     }
   }
 
-  if (path.startsWith('/api/admin/users')) {
+  if (path.startsWith('/api/admin/users/') && !path.endsWith('/status')) {
+    const id = path.replace('/api/admin/users/', '').split('?')[0]
+    const users = getStored(STORAGE_KEYS.USERS, DEFAULT_USERS)
+    const found = users.find(u => u.id === id)
+    if (!found) throw new Error('User not found')
+    return found
+  }
+
+  if (path === '/api/admin/users' || path.startsWith('/api/admin/users?') || path.startsWith('/api/admin/users')) {
     return getStored(STORAGE_KEYS.USERS, DEFAULT_USERS)
   }
 
