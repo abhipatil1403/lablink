@@ -5,9 +5,24 @@ import {token} from './services/sessionAuth'
 import {submitSession} from './services/sessionService'
 import {Status,TestResults} from './pages/Common'
 
-const wsUrl=import.meta.env.VITE_NETWORK_WS_URL ||
-  ((typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss://' : 'ws://') +
-   (typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost') + ':3001/ws')
+function getWsUrl() {
+  if (typeof window !== 'undefined') {
+    const custom = window.localStorage.getItem('lablink_ws_url')
+    if (custom) return custom.trim()
+  }
+  if (import.meta.env.VITE_NETWORK_WS_URL) {
+    return import.meta.env.VITE_NETWORK_WS_URL.trim()
+  }
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname || ''
+    if (host.endsWith('vercel.app') || host.endsWith('netlify.app')) {
+      return ''
+    }
+    const proto = window.location.protocol === 'https:' ? 'wss://' : 'ws://'
+    return `${proto}${host}:3001/ws`
+  }
+  return 'ws://localhost:3001/ws'
+}
 
 const fields=['observations','dnsInformation','evidence','rootCause','recommendedFix']
 const labels=['Observations','DNS information','Evidence','Root cause','Recommended fix']
@@ -57,6 +72,13 @@ export function AssignmentWorkspace({session}) {
   useEffect(()=>{
     let isUnmounted=false
     if(reconnectTimer.current) clearTimeout(reconnectTimer.current)
+
+    const wsUrl = getWsUrl()
+    if (!wsUrl) {
+      setConnection('OFFLINE')
+      setError('Network gateway WebSocket is not configured. Please set VITE_NETWORK_WS_URL in your Vercel project environment variables.')
+      return
+    }
 
     const ws=new WebSocket(wsUrl)
     socket.current=ws
