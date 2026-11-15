@@ -50,7 +50,7 @@ export async function startServices() {
   const file = lineServer((line, socket) => {
     const name = line.startsWith('GET ') ? line.slice(4) : ''
     const interrupted = name === 'interrupted.txt'
-    const content = interrupted ? documents['networks.txt'] : documents[name]
+    const content = interrupted ? documents['networks.txt'] : Object.hasOwn(documents,name) ? documents[name] : undefined
     if (content === undefined) return socket.end('ERROR NOT_FOUND\n')
     socket.write(JSON.stringify({ name, bytes: Buffer.byteLength(content), sha256: digest(content) }) + '\n')
     const data = Buffer.from(content)
@@ -63,7 +63,7 @@ export async function startServices() {
       const query = line.slice(7).toLowerCase()
       socket.write(JSON.stringify(Object.keys(documents).filter(name => name.toLowerCase().includes(query))) + '\n')
     } else if (line.startsWith('GET ')) {
-      const name = line.slice(4), content = documents[name]
+      const name = line.slice(4), content = Object.hasOwn(documents,name) ? documents[name] : undefined
       socket.write(JSON.stringify(content === undefined ? { error: 'NOT_FOUND' } : { name, content, sha256: digest(content) }) + '\n')
     } else socket.write(JSON.stringify({ error: 'INVALID_QUERY' }) + '\n')
   })

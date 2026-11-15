@@ -1,5 +1,5 @@
 import {clearToken,saveToken,token} from './sessionAuth'
-const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+const base = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && window.location.port !== '5173' && window.location.origin ? window.location.origin : 'http://localhost:8081')
 async function auth(path,body) {
   const response=await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
   const data=await response.json()

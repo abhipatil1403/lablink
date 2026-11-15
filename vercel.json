@@ -1,0 +1,9 @@
+{
+  "buildCommand": "cd lablink-frontend && npm run build",
+  "outputDirectory": "lablink-frontend/dist",
+  "installCommand": "cd lablink-frontend && npm ci",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

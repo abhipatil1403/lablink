@@ -29,7 +29,7 @@ public class InternalSessionController {
         return attempt;
     }
     @GetMapping("/{id}/validate")
-    public Map<String, Object> configuration(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key) {
+    public Map<String, Object> configuration(@PathVariable UUID id, @RequestHeader(value = "X-LabLink-Gateway-Key", required = false) String key) {
         var attempt = validate(id, key);
         var dto = store.attempt(attempt);
         dto.put("evaluationTests", store.tests(attempt.assignment).stream().filter(t -> t.enabled)
@@ -38,7 +38,7 @@ public class InternalSessionController {
     }
     record Begin(@NotBlank @Size(max = 32768) String solution) {}
     @PostMapping("/{id}/begin")
-    public Map<String, Object> begin(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key,
+    public Map<String, Object> begin(@PathVariable UUID id, @RequestHeader(value = "X-LabLink-Gateway-Key", required = false) String key,
                                    @Valid @RequestBody Begin body) {
         validate(id, key);
         return Map.of("status", "RUNNING", "evaluationTests", store.begin(id, body.solution()));
@@ -46,14 +46,14 @@ public class InternalSessionController {
     record Complete(@NotNull @Pattern(regexp = "run|test") String mode, @NotNull @Size(max = 65536) String output,
                     @NotNull @Size(max = 131072) String networkLog, @NotNull @Size(max = 50) List<LabStore.Report> results) {}
     @PostMapping("/{id}/complete")
-    public Map<String, Object> complete(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key,
+    public Map<String, Object> complete(@PathVariable UUID id, @RequestHeader(value = "X-LabLink-Gateway-Key", required = false) String key,
                                        @Valid @RequestBody Complete body) {
         validate(id, key); store.complete(id, body.mode(), body.output(), body.networkLog(), body.results());
         return store.attempt(store.get(Attempt.class, id));
     }
     record Failure(@NotBlank @Size(max = 2000) String message) {}
     @PostMapping("/{id}/failure")
-    public Map<String, Object> failure(@PathVariable UUID id, @RequestHeader("X-LabLink-Gateway-Key") String key,
+    public Map<String, Object> failure(@PathVariable UUID id, @RequestHeader(value = "X-LabLink-Gateway-Key", required = false) String key,
                                       @Valid @RequestBody Failure body) {
         validate(id, key); store.failure(id, body.message()); return Map.of("status", "FAILED");
     }

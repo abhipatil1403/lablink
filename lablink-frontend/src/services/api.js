@@ -1,6 +1,6 @@
 import { clearToken, token } from './sessionAuth'
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+const baseUrl = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && window.location.port !== '5173' && window.location.origin ? window.location.origin : 'http://localhost:8081')
 
 export async function apiRequest(path, options = {}) {
   const accessToken = token()

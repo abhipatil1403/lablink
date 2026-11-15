@@ -69,6 +69,7 @@ export async function createNetworkServer({apiBaseUrl,gatewayKey,frontendOrigin}
       if (!ready) {
         if (authenticating) {send({type:'error',message:'Authentication is in progress'});return}
         if (message.type!=='authenticate' || typeof message.token!=='string' || message.token.length>4096 ||
+            typeof message.sessionId!=='string' ||
             !/^[a-f0-9-]{36}$/i.test(message.sessionId)) {ws.close(1008,'Invalid authentication');return}
         authenticating=true;token=message.token;id=message.sessionId
         try {await api('validate');ready=true;send({type:'status',status:'READY'})}
@@ -85,16 +86,48 @@ export async function createNetworkServer({apiBaseUrl,gatewayKey,frontendOrigin}
         const begun=await api('begin',{solution:message.code})
         const tests=begun.evaluationTests
         if (!tests?.length) throw new Error('No enabled assignment tests')
-        send({type:'status',status:'RUNNING'})
         const selected=message.mode==='test'?tests:[tests.reduce((best,current)=>current.weight>best.weight?current:best)]
+        send({type:'status',status:'RUNNING',total:selected.length,mode:message.mode})
         const reports=[],network=[],output=[]
-        for (const test of selected) {
+        let totalEvaluatedWeight=0, earnedWeight=0
+        for (let i=0; i<selected.length; i++) {
+          const test=selected[i]
+          send({
+            type:'testStart',
+            testCaseId:test.id,
+            name:test.name || ('Test '+(i+1)),
+            weight:Number(test.weight) || 0,
+            index:i+1,
+            total:selected.length
+          })
           const run=await runSolution(message.code,test.configuration.input,suite.endpoints)
           const verdict=evaluate(test.type,test.configuration.input,run,suite.documents,test.configuration)
           reports.push({testCaseId:test.id,...verdict})
           network.push(...run.network.map(entry=>({...entry,testCaseId:test.id})))
-          output.push('Test '+test.id+'\n'+(run.output || '')+'\nResult: '+JSON.stringify(run.value || {})+'\n'+verdict.output)
-          send({type:'testResult',testCaseId:test.id,...verdict})
+          const testHeader = test.name ? `Test: ${test.name}` : `Test ${test.id}`
+          output.push(testHeader+'\n'+(run.output || '')+'\nResult: '+JSON.stringify(run.value || {})+'\n'+verdict.output)
+          totalEvaluatedWeight += (Number(test.weight) || 0)
+          if (verdict.passed) earnedWeight += (Number(test.weight) || 0)
+          const liveScore = totalEvaluatedWeight > 0 ? Math.round((earnedWeight * 100) / totalEvaluatedWeight) : null
+          send({
+            type:'testResult',
+            testCaseId:test.id,
+            name:test.name || ('Test '+(i+1)),
+            weight:Number(test.weight) || 0,
+            passed:verdict.passed,
+            status:verdict.status,
+            output:verdict.output,
+            executionOutput:output.join('\n\n').slice(0,65000),
+            networkLog:JSON.stringify({
+              entries:network.slice(-100),
+              totalEvents:network.length,
+              truncated:network.length>100
+            }),
+            index:i+1,
+            total:selected.length,
+            runningScore:liveScore,
+            ...verdict
+          })
         }
         // PostgreSQL owns the score, using the captured test weights.
         const entries=[];let size=0

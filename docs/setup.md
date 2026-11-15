@@ -1,5 +1,21 @@
 # LabLink setup
 
+## Use the correct checkout
+
+The Git root on this workstation is `F:\ALL\ABHI\VIT\TY SEM 1\CNT\LAB\CP\lablink`. Start each component **inside that checkout**. Separate sibling folders at CP\lablink-backend, CP\lablink-frontend and CP\lablink-network-service are not the tracked application.
+
+If npm test says "no test specified", first check the directory rather than recreating the project:
+
+```powershell
+Set-Location 'F:\ALL\ABHI\VIT\TY SEM 1\CNT\LAB\CP\lablink\lablink-network-service'
+git rev-parse --show-toplevel
+npm prefix
+npm pkg get version scripts
+npm test
+```
+
+The intended package is version 0.1.0 with QuickJS and real test scripts. See the [network service README](../lablink-network-service/README.md). Do not replace tracked files with an unrelated sibling package.
+
 ## Configured workstation
 
 The local verification on 15 October 2026 uses React **5173**, the API **8081**, the gateway **3001**, and a dedicated PostgreSQL cluster on **127.0.0.1:5432**. Apache already uses 8080 and the existing Windows PostgreSQL service uses 5434; both were preserved. The ignored .env files contain the configured URLs and generated secrets. The examples below describe the general defaults; use the configured values when running this workstation.
@@ -126,7 +142,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. Log in with the bootstrap admin; create faculty. Students register through the public registration page.
+Open http://localhost:5173 for the public homepage and choose a workspace. Student, Faculty and Admin login pages are at `/login/student`, `/login/faculty` and `/login/admin`. The verified account role determines the dashboard after login. Log in through the Admin card with the bootstrap admin, then create faculty through **Users → Create Faculty**. Students can register through the Student login page. See [Public entry and role navigation](public-entry.md) for routes, account provisioning and verification commands.
 
 ## Ports
 

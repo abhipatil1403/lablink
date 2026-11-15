@@ -22,9 +22,9 @@ public class GatewayHealthController {
     record Heartbeat(@NotNull @Size(min = 7, max = 8) Map<String, Integer> endpoints,
                      @NotNull @Size(min = 7, max = 7) Map<String, String> health) {}
     @PostMapping("/heartbeat")
-    public Map<String, Object> heartbeat(@RequestHeader("X-LabLink-Gateway-Key") String supplied,
+    public Map<String, Object> heartbeat(@RequestHeader(value = "X-LabLink-Gateway-Key", required = false) String supplied,
                                        @Valid @RequestBody Heartbeat body) {
-        if (!MessageDigest.isEqual(key, supplied.getBytes(StandardCharsets.UTF_8)))
+        if (supplied == null || !MessageDigest.isEqual(key, supplied.getBytes(StandardCharsets.UTF_8)))
             throw new ApiException(HttpStatus.FORBIDDEN, "Gateway credentials required");
         for (Server server : store.all(Server.class, "NetworkServer")) {
             String endpoint = Set.of("monitor", "http").contains(server.service) ? "http" : server.service;

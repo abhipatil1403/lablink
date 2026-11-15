@@ -21,7 +21,7 @@ function verdict(type, input, run, documents, configuration) {
       input.messages.every(message=>seen('tcp.send',e=>e.args[1]==='MSG '+message)) &&
       seen('tcp.read',e=>e.response==='BYE') && seen('tcp.read',e=>e.response===null) && seen('tcp.close')
   } else if (type === 'file-transfer') {
-    const expected = documents[input.filename]
+    const expected = Object.hasOwn(documents,input.filename) ? documents[input.filename] : undefined
     const requested = seen('tcp.send',e=>e.args[1]==='GET '+input.filename) && seen('tcp.connect',e=>e.args[0]==='file')
     if (expected === undefined) passed = requested && value?.error === true &&
       seen('tcp.read',e=>input.filename==='interrupted.txt' ? e.response===null : e.response==='ERROR NOT_FOUND')

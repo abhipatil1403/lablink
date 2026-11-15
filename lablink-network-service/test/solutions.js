@@ -1,6 +1,7 @@
 // Reference implementations used only by integration tests; never sent to the student UI.
+import {readFileSync} from 'node:fs'
 export const solutions = {
-  "tcp-chat": "function solve(input) {\n let id;\n try { id=tcp.connect(input.service); } catch (e) { return {error:true}; }\n tcp.send(id,\"USER \"+input.username);\n const welcome=tcp.read(id), replies=[];\n for(const message of input.messages) {tcp.send(id,\"MSG \"+message);replies.push(tcp.read(id));}\n tcp.send(id,\"QUIT\");if(tcp.read(id)!==\"BYE\")throw new Error(\"Missing BYE\");\n const closed=tcp.read(id)===null;tcp.close(id);\n return {welcome,replies,closed};\n}",
+  "tcp-chat": readFileSync(new URL('../examples/tcp-chat.js',import.meta.url),'utf8'),
   "file-transfer": "function solve(input) {\n const id=tcp.connect(\"file\");tcp.send(id,\"GET \"+input.filename);\n const first=tcp.read(id);\n if(first===\"ERROR NOT_FOUND\"){tcp.close(id);return {error:true};}\n const header=JSON.parse(first);let content=\"\",line;\n while((line=tcp.read(id))!==null && line!==\"END\")content+=decodeBase64(line.slice(5));\n tcp.close(id);\n if(line!==\"END\" || sha256(content)!==header.sha256)return {error:true};\n save(input.filename,content);\n return {name:input.filename,content,sha256:sha256(content),saved:true};\n}",
   "udp-telemetry": "function solve(input) {\n const positions={};\n for(const u of udp.exchange(input.updates)) if(!positions[u.player] || u.seq>positions[u.player].seq)\n   positions[u.player]={x:u.x,y:u.y,seq:u.seq};\n return {positions};\n}",
   "http-api": "function solve(input) {\n const response=http.request(input.path,\"GET\");\n if(response.status!==200)return {error:true,status:response.status};\n return JSON.parse(response.body);\n}",

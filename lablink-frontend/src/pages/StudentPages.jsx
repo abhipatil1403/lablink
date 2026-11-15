@@ -14,7 +14,7 @@ function AssignmentCard({assignment}) {
 }
 export function StudentDashboard() {
   const {profile}=useAuth()
-  const {data,loading,error}=useRemote(loadDashboard)
+  const {data,loading,error}=useRemote(loadDashboard, null, {interval: 4000})
   const [assignments,submissions]=data||[[],[]]
   const metrics=[
     ['Available assignments',assignments.filter(a=>a.status==='ACTIVE').length,BookOpen],
@@ -25,12 +25,12 @@ export function StudentDashboard() {
   return <><Header eyebrow="STUDENT DASHBOARD" title={'Welcome, '+profile.name.split(' ')[0]} description="Solve seven networking assignments using actual network services."/><DataState loading={loading} error={error}><div className="metric-grid">{metrics.map(([label,value,Icon])=><article key={label} className="metric-card"><span className="metric-icon"><Icon size={22}/></span><strong>{value}</strong><span>{label}</span></article>)}</div><div className="section-heading"><h2>Assignments</h2><Link className="text-link" to="/student/assignments">View all <ArrowRight size={16}/></Link></div><div className="experiment-grid">{assignments.map(a=><AssignmentCard key={a.id} assignment={a}/>)}</div></DataState></>
 }
 export function ExperimentCatalog() {
-  const {data,loading,error}=useRemote(listExperiments)
+  const {data,loading,error}=useRemote(listExperiments, null, {interval: 5000})
   return <><Header eyebrow="ASSIGNMENTS" title="Assignment catalog" description="TCP, UDP, HTTP, DNS and network monitoring programming challenges."/><DataState loading={loading} error={error}><div className="experiment-grid">{data?.map(a=><AssignmentCard key={a.id} assignment={a}/>)}</div></DataState></>
 }
 export function ExperimentDetails() {
   const {id}=useParams(),navigate=useNavigate()
-  const {data:a,loading,error}=useRemote(getExperiment,id)
+  const {data:a,loading,error}=useRemote(getExperiment,id, {interval: 5000})
   const [busy,setBusy]=useState(false),[failure,setFailure]=useState('')
   async function start(){
     setBusy(true);setFailure('')
@@ -40,20 +40,20 @@ export function ExperimentDetails() {
 }
 export function SessionDetails() {
   const {id}=useParams()
-  const {data,loading,error}=useRemote(getSession,id)
+  const {data,loading,error}=useRemote(getSession,id, {interval: 3000})
   return <DataState loading={loading} error={error}>{data&&(data.status==='SUBMITTED'?<section className="content-card"><h1>Assignment submitted</h1><Link to="/student/submissions">View your submissions</Link></section>:<AssignmentWorkspace key={data.id} session={data}/>)}</DataState>
 }
 export function StudentAttempts() {
-  const {data,loading,error}=useRemote(listAttempts)
+  const {data,loading,error}=useRemote(listAttempts, null, {interval: 3000})
   return <><Header title="Assignment attempts" description="Resume your work or inspect a previous attempt."/><DataState loading={loading} error={error}>{data?.length?<div className="table-wrap"><table><thead><tr><th>Assignment</th><th>Attempt</th><th>Status</th><th>Started</th><th>Score</th></tr></thead><tbody>{data.map(a=><tr key={a.id}><td><Link to={'/attempt/'+a.id}>{a.assignmentTitle}</Link></td><td>{a.attemptNumber}</td><td><Status value={a.status}/></td><td>{new Date(a.startedAt).toLocaleString()}</td><td>{a.automatedScore??'—'}</td></tr>)}</tbody></table></div>:<div className="state-card">Start an assignment to record your first attempt.</div>}</DataState></>
 }
 export function SubmissionHistory() {
-  const {data,loading,error}=useRemote(listSubmissions)
+  const {data,loading,error}=useRemote(listSubmissions, null, {interval: 3000})
   return <><Header title="Submission history" description="Track automated scores, faculty grades and feedback."/><DataState loading={loading} error={error}>{data?.length?<div className="table-wrap"><table><thead><tr><th>Assignment</th><th>Submitted</th><th>Status</th><th>Automated</th><th>Faculty grade</th><th>Feedback</th></tr></thead><tbody>{data.map(s=><tr key={s.id}><td><Link to={'/student/submissions/'+s.id}>{s.assignmentTitle}</Link></td><td>{new Date(s.submittedAt).toLocaleString()}</td><td><Status value={s.status}/></td><td>{s.automatedScore}</td><td>{s.facultyGrade??'—'}</td><td>{s.facultyFeedback||'—'}</td></tr>)}</tbody></table></div>:<div className="state-card">No submissions yet. Complete the automated tests before submitting.</div>}</DataState></>
 }
 export function SubmissionDetails() {
   const {id}=useParams()
-  const {data:s,loading,error}=useRemote(getSubmission,id)
+  const {data:s,loading,error}=useRemote(getSubmission,id, {interval: 3000})
   return <><Link className="back-link" to="/student/submissions"><ArrowLeft size={16}/> Submission history</Link><DataState loading={loading} error={error}>{s&&<><Header title={s.assignmentTitle} description={'Submitted '+new Date(s.submittedAt).toLocaleString()}/><div className="detail-grid"><div className="detail-main"><WorkEvidence work={s}/></div><aside className="detail-side"><section className="content-card"><h2>Faculty review</h2><Status value={s.status}/><p>Grade: {s.facultyGrade??'Pending'} / 100</p><p>{s.facultyFeedback||'Feedback will appear after faculty review.'}</p>{s.status==='RETURNED'&&<Link to={'/assignment/'+s.assignmentId}>Start a revised attempt</Link>}</section>{s.reviews.map((r,i)=><section className="content-card" key={i}><strong>{r.facultyName} · {r.status}</strong><p>{r.feedback}</p><small>{new Date(r.createdAt).toLocaleString()}</small></section>)}</aside></div></>}</DataState></>
 }
 export function StudentProfile() {

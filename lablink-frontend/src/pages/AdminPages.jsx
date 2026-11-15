@@ -6,7 +6,7 @@ import {adminAudit,adminDashboard,adminServers,adminUser,adminUsers,createFacult
 import {DataState,Header,Status} from './Common'
 
 export function AdminDashboard() {
-  const {data,loading,error,reload}=useRemote(adminDashboard)
+  const {data,loading,error,reload}=useRemote(adminDashboard, null, {interval: 3000})
   const metrics=data?[
     ['Users',data.totalUsers,Users],['Students',data.students,Users],['Faculty',data.faculty,Users],['Admins',data.admins,Users],['Pending reviews',data.pendingReviews,ClipboardList],
     ['Assignments',data.experiments,BookOpen],['Active assignments',data.activeExperiments,BookOpen],
@@ -15,12 +15,12 @@ export function AdminDashboard() {
   return <><Header eyebrow="ADMINISTRATION" title="System overview" description="Database counts and live network gateway health." action={<button className="secondary-button" onClick={reload}>Refresh status</button>}/><DataState loading={loading} error={error}><div className="metric-grid admin-metrics">{metrics.map(([label,value,Icon])=><article className="metric-card" key={label}><span className="metric-icon"><Icon size={21}/></span><strong>{value}</strong><span>{label}</span></article>)}</div><div className="section-heading"><h2>System status</h2></div><div className="system-grid">{data&&[['REST API',data.systemStatus.api],['PostgreSQL database',data.systemStatus.database],['Network gateway',data.systemStatus.networkService]].map(([label,value])=><section className="content-card system-card" key={label}><strong>{label}</strong><Status value={value}/></section>)}</div></DataState></>
 }
 export function AdminSystemStatus() {
-  const {data,loading,error,reload}=useRemote(adminDashboard)
+  const {data,loading,error,reload}=useRemote(adminDashboard, null, {interval: 3000})
   return <><Header title="System status" description="The API checks PostgreSQL and the network gateway when this page loads." action={<button className="secondary-button" onClick={reload}>Check now</button>}/><DataState loading={loading} error={error}><div className="system-grid">{data&&Object.entries(data.systemStatus).map(([name,value])=><section className="content-card system-card" key={name}><strong>{name}</strong><Status value={value}/></section>)}</div></DataState></>
 }
 export function AdminUsers() {
   const [query,setQuery]=useState(''),[filters,setFilters]=useState({search:'',role:'',status:''})
-  const {data,loading,error,reload}=useRemote(adminUsers,query)
+  const {data,loading,error,reload}=useRemote(adminUsers,query, {interval: 5000})
   const [form,setForm]=useState(null),[failure,setFailure]=useState(''),[busy,setBusy]=useState('')
   async function status(id,value){
     if(value!=='ACTIVE'&&!window.confirm('Set this account to '+value+'? Existing login sessions will be revoked.'))return
@@ -39,7 +39,7 @@ export function AdminUsers() {
 }
 export function AdminUserDetails() {
   const {id}=useParams()
-  const {data,loading,error}=useRemote(adminUser,id)
+  const {data,loading,error}=useRemote(adminUser,id, {interval: 5000})
   const dates=[['Created',data?.createdAt],['Updated',data?.updatedAt],['Last login',data?.lastLoginAt]]
   return <><Link className="back-link" to="/admin/users">Back to users</Link><Header title="User details" description="Account identity and activity from PostgreSQL."/><DataState loading={loading} error={error}>{data&&<section className="content-card profile-card"><dl>
     {[['Name',data.name],['Email',data.email],['Role',data.role],['Account ID',data.id]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
@@ -48,7 +48,7 @@ export function AdminUserDetails() {
   </dl></section>}</DataState></>
 }
 export function AdminServers() {
-  const {data,loading,error,reload}=useRemote(adminServers)
+  const {data,loading,error,reload}=useRemote(adminServers, null, {interval: 3000})
   const [busy,setBusy]=useState(''),[failure,setFailure]=useState('')
   async function toggle(server){
     if(server.status==='ACTIVE'&&!window.confirm('Disable '+server.name+'? Students will be unable to start runs for this service.'))return
@@ -57,6 +57,6 @@ export function AdminServers() {
   return <><Header title="Network services" description="Real service ports and gateway heartbeats. Disabling a service prevents assignment execution." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/>{failure&&<p className="form-error" role="alert">{failure}</p>}<DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Host</th><th>Port</th><th>Protocol</th><th>Access</th><th>Heartbeat</th><th>Health</th><th>Active sessions</th><th></th></tr></thead><tbody>{data?.map(s=><tr key={s.id}><td>{s.name}</td><td>{s.address}</td><td>{s.port||'Pending'}</td><td>{s.supportedProtocols.join(', ')}</td><td><Status value={s.status}/></td><td>{s.lastHeartbeat?new Date(s.lastHeartbeat).toLocaleString():'Not received'}</td><td><Status value={s.health}/></td><td>{s.activeSessions}</td><td><button disabled={busy===s.id} onClick={()=>toggle(s)}>{s.status==='ACTIVE'?'Disable':'Enable'}</button></td></tr>)}</tbody></table></div></DataState></>
 }
 export function AdminAudit() {
-  const {data,loading,error}=useRemote(adminAudit)
+  const {data,loading,error}=useRemote(adminAudit, null, {interval: 4000})
   return <><Header title="Audit history" description="Recent administrative changes, assignment attempts and reviews."/><DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Details</th></tr></thead><tbody>{data?.map(a=><tr key={a.id}><td>{new Date(a.createdAt).toLocaleString()}</td><td>{a.actor?.name||'System'}</td><td>{a.action}</td><td><code>{a.resource}</code></td><td>{a.details}</td></tr>)}</tbody></table></div></DataState></>
 }

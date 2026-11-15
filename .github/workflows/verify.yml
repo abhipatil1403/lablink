@@ -42,13 +42,14 @@ jobs:
         run: |
           npm ci
           npm test
-      - name: Frontend lint and production build
+      - name: Frontend lint, production build and public routes
         working-directory: lablink-frontend
         run: |
           npm ci
           npm run lint
           npm run build
           npx playwright install --with-deps chromium
+          npm test
       - name: Seven assignments and browser workflows
         working-directory: lablink-network-service
         env:
@@ -64,3 +65,4 @@ jobs:
             lablink-backend/target/surefire-reports
             lablink-backend/target/e2e.log
             lablink-frontend/target/ui
+            lablink-frontend/target/public-flow

@@ -59,13 +59,20 @@ class SqlWorkflowTest {
     @Test void authenticationAndRoleBoundaries() throws Exception {
         request("GET", "/api/auth/me", null, null, 401);
         request("GET", "/api/admin/users", student, null, 403);
+        request("GET", "/api/faculty/submissions", student, null, 403);
+        request("GET", "/api/admin/users", faculty, null, 403);
         request("GET", "/api/faculty/submissions", admin, null, 403);
+        assertEquals("STUDENT", request("GET", "/api/auth/me", other, null, 200).get("role").asText());
         var me = request("GET", "/api/auth/me", student, null, 200);
         assertEquals("STUDENT", me.get("role").asText());
         assertFalse(me.has("passwordHash"));
         assertFalse(me.has("authVersion"));
         request("POST", "/api/auth/login", null, Map.of("email", me.get("email").asText(), "password", "wrong"), 401);
         var login = request("POST", "/api/auth/login", null, Map.of("email", me.get("email").asText(), "password", "TestPassword123"), 200);
+        var selectedAdmin = request("POST", "/api/auth/login?role=ADMIN", null,
+            Map.of("email", me.get("email").asText(), "password", "TestPassword123", "role", "ADMIN"), 200);
+        assertEquals("STUDENT", selectedAdmin.path("user").path("role").asText());
+        request("GET", "/api/admin/users", selectedAdmin.get("token").asText(), null, 403);
         request("POST", "/api/auth/logout", student, null, 204);
         request("GET", "/api/auth/me", login.get("token").asText(), null, 401);
         var fresh = request("POST", "/api/auth/login", null, Map.of("email", me.get("email").asText(), "password", "TestPassword123"), 200);
@@ -98,13 +105,22 @@ class SqlWorkflowTest {
         }
         mvc.perform(get(path + "/validate").header("Authorization", "Bearer " + student).header("X-LabLink-Gateway-Key", "bad"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        mvc.perform(get(path + "/validate").header("Authorization", "Bearer " + student))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
         request("POST", path + "/begin", student, Map.of("solution", "function solve(input) {return input}"), 200);
+        var duplicateReports = new ArrayList<>(reports);
+        duplicateReports.set(1, reports.get(0));
+        request("POST", path + "/complete", student, Map.of("mode", "test", "output", "Rejected duplicate report", "networkLog", "", "results", duplicateReports), 400);
+        var afterDuplicate = request("GET", "/api/sessions/" + attempt.get("id").asText(), student, null, 200);
+        assertEquals("RUNNING", afterDuplicate.get("status").asText());
+        assertTrue(afterDuplicate.get("automatedScore").isNull());
         var firstTest = config.get("evaluationTests").get(0);
         String originalName = request("GET", "/api/faculty/assignments/" + id + "/tests", faculty, null, 200).findValues("name").get(0).asText();
         request("PUT", "/api/faculty/assignments/" + id + "/tests/" + firstTest.get("id").asText(), faculty,
             Map.of("name", "Edited " + UUID.randomUUID(), "weight", 11, "enabled", true,
                 "configuration", firstTest.get("configuration")), 200);
         request("POST", path + "/complete", student, Map.of("mode", "test", "output", "Execution output", "networkLog", "Actual TCP records", "results", reports), 200);
+        request("POST", path + "/complete", student, Map.of("mode", "test", "output", "Duplicate completion", "networkLog", "", "results", reports), 409);
         var submission = request("POST", "/api/sessions/" + attempt.get("id").asText() + "/submit", student, null, 201);
         assertEquals(passed * 100.0 / total, submission.get("automatedScore").asDouble(), 0.01);
         assertEquals(reports.size(), submission.get("testResults").size());
@@ -164,6 +180,9 @@ class SqlWorkflowTest {
         health.put("dns", "OFFLINE");
         String path = "/api/internal/services/heartbeat";
         mvc.perform(post(path).header("X-LabLink-Gateway-Key", "incorrect").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("endpoints", endpoints, "health", health))))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(Map.of("endpoints", endpoints, "health", health))))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
         request("POST", path, null, Map.of("endpoints", endpoints), 400);

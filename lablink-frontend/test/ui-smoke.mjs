@@ -30,7 +30,14 @@ try {
     await new Promise(resolve=>setTimeout(resolve,350))
     await route.continue()
   },{times:1})
-  await page.goto(base+'/register')
+  await page.goto(base+'/')
+  await expect(page.getByRole('heading',{level:1})).toHaveText('Networking concepts.Real connections.')
+  await expect(page.locator('.sidebar')).toHaveCount(0)
+  for(const role of ['Student','Faculty','Admin'])await expect(page.getByRole('link',{name:'Enter '+role+' workspace'})).toHaveAttribute('href','/login/'+role.toLowerCase())
+  await page.screenshot({path:artifacts+'/public-homepage.png',fullPage:true})
+  await page.getByRole('link',{name:'Enter Student workspace'}).click()
+  await expect(page.getByRole('heading',{name:'Student login',exact:true})).toBeVisible()
+  await page.getByRole('link',{name:'Create student account'}).click()
   await page.getByLabel('Full name').fill('UI Student')
   await page.getByLabel('Email address').fill(email)
   await page.getByLabel('Password',{exact:true}).fill(password)
@@ -100,12 +107,16 @@ try {
     firstSubmission ||= page.url().split('/').at(-1)
     console.log('PASS browser editor, tests and submission: '+assignment.title)
   }
-  async function logout(){await page.getByRole('button',{name:'Log out',exact:true}).click();await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible()}
-  async function login(email,accountPassword=password){
+  async function logout(){await page.getByRole('button',{name:'Log out',exact:true}).click();await expect(page.getByRole('heading',{name:/^(Student|Faculty|Admin) login$/})).toBeVisible()}
+  async function login(email,accountPassword=password,role='Student'){
+    await page.getByRole('link',{name:'Back to homepage'}).click()
+    await page.getByRole('link',{name:'Enter '+role+' workspace'}).click()
+    await page.reload()
+    await expect(page.getByRole('heading',{name:role+' login',exact:true})).toBeVisible()
     await page.getByLabel('Email address').fill(email);await page.getByLabel('Password',{exact:true}).fill(accountPassword)
     await page.getByRole('button',{name:'Log in',exact:true}).click()
   }
-  await logout();await login(process.env.UI_ADMIN_EMAIL || 'admin@e2e.example',process.env.UI_ADMIN_PASSWORD || password)
+  await logout();await login(process.env.UI_ADMIN_EMAIL || 'admin@e2e.example',process.env.UI_ADMIN_PASSWORD || password,'Admin')
   await expect(page.getByRole('heading',{name:'System overview'})).toBeVisible({timeout:10000})
   await page.getByRole('link',{name:'Users',exact:true}).click()
   await page.getByRole('button',{name:'Create Faculty',exact:true}).click()
@@ -141,7 +152,7 @@ try {
   await expect(page.getByRole('button',{name:'Disable',exact:true})).toHaveCount(7)
   await page.getByRole('link',{name:'Audit history',exact:true}).click()
   await expect(page.getByRole('heading',{name:'Audit history'})).toBeVisible()
-  await logout();await login(facultyEmail)
+  await logout();await login(facultyEmail,password,'Faculty')
   await expect(page.getByRole('heading',{name:'Laboratory overview'})).toBeVisible({timeout:10000})
   await page.goto(base+'/faculty/submissions/'+firstSubmission)
   await page.getByLabel('Grade out of 100').fill('96')

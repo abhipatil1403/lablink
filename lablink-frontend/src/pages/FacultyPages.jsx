@@ -8,17 +8,17 @@ import {assignmentTests,facultyDashboard,facultySession,facultySessions,facultyS
 import {DataState,Header,Status,WorkEvidence} from './Common'
 
 export function FacultyDashboard() {
-  const {data,loading,error}=useRemote(facultyDashboard)
+  const {data,loading,error,reload}=useRemote(facultyDashboard, null, {interval: 3000})
   const metrics=data?[
     ['Assignments',data.totalExperiments,BookOpen],['Active assignments',data.activeExperiments,BookOpen],['Active students',data.activeStudents,Users],
     ['Active attempts',data.activeSessions,Users],['Pending reviews',data.pendingReviews,Clock3],['Completed submissions',data.completedSubmissions,ClipboardCheck]
   ]:[]
-  return <><Header eyebrow="FACULTY DASHBOARD" title="Laboratory overview" description="Monitor student work and review networking solutions."/><DataState loading={loading} error={error}><div className="metric-grid faculty-metrics">{metrics.map(([label,value,Icon])=><article className="metric-card" key={label}><span className="metric-icon"><Icon size={22}/></span><strong>{value}</strong><span>{label}</span></article>)}</div><div className="section-heading"><h2>Pending reviews</h2><Link to="/faculty/submissions">All submissions <ArrowRight size={16}/></Link></div><SubmissionsTable data={data?.pendingSubmissions}/><div className="section-heading"><h2>Recent attempts</h2></div><AttemptsTable data={data?.recentSessions}/></DataState></>
+  return <><Header eyebrow="FACULTY DASHBOARD" title="Laboratory overview" description="Monitor student work and review networking solutions." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/><DataState loading={loading} error={error}><div className="metric-grid faculty-metrics">{metrics.map(([label,value,Icon])=><article className="metric-card" key={label}><span className="metric-icon"><Icon size={22}/></span><strong>{value}</strong><span>{label}</span></article>)}</div><div className="section-heading"><h2>Pending reviews</h2><Link to="/faculty/submissions">All submissions <ArrowRight size={16}/></Link></div><SubmissionsTable data={data?.pendingSubmissions}/><div className="section-heading"><h2>Recent attempts</h2></div><AttemptsTable data={data?.recentSessions}/></DataState></>
 }
 export function FacultyExperiments() {
   const {profile}=useAuth()
   const role=profile.role.toLowerCase()
-  const {data,loading,error,reload}=useRemote(listExperiments)
+  const {data,loading,error,reload}=useRemote(listExperiments, null, {interval: 5000})
   const [failure,setFailure]=useState(''),[busy,setBusy]=useState('')
   async function toggle(item) {
     if(item.status==='ACTIVE'&&!window.confirm('Deactivate '+item.title+'? Students will be unable to start new attempts or runs.'))return
@@ -66,26 +66,26 @@ function AttemptsTable({data=[]}) {
 }
 export function FacultySessions() {
   const [filters,setFilters]=useState({assignmentId:'',status:'',date:''}),[query,setQuery]=useState('')
-  const {data,loading,error,reload}=useRemote(facultySessions,query)
-  const {data:assignments}=useRemote(listExperiments)
+  const {data,loading,error,reload}=useRemote(facultySessions,query, {interval: 3000})
+  const {data:assignments}=useRemote(listExperiments, null, {interval: 5000})
   return <><Header title="Student attempts" description="Inspect student code, execution output and network evidence." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/><form className="filter-bar" onSubmit={e=>{e.preventDefault();setQuery(new URLSearchParams(Object.entries(filters).filter(([,v])=>v)).toString())}}><select aria-label="Assignment filter" value={filters.assignmentId} onChange={e=>setFilters({...filters,assignmentId:e.target.value})}><option value="">All assignments</option>{assignments?.map(a=><option key={a.id} value={a.id}>{a.title}</option>)}</select><select aria-label="Status filter" value={filters.status} onChange={e=>setFilters({...filters,status:e.target.value})}><option value="">All statuses</option>{['STARTING','RUNNING','TESTED','SUBMITTED','FAILED'].map(s=><option key={s}>{s}</option>)}</select><input type="date" aria-label="Start date filter" value={filters.date} onChange={e=>setFilters({...filters,date:e.target.value})}/><button className="secondary-button">Apply filters</button></form><DataState loading={loading} error={error}><AttemptsTable data={data}/></DataState></>
 }
 export function FacultyAttempt() {
   const {id}=useParams()
-  const {data,loading,error}=useRemote(facultySession,id)
+  const {data,loading,error}=useRemote(facultySession,id, {interval: 3000})
   return <><Link className="back-link" to="/faculty/sessions">All attempts</Link><DataState loading={loading} error={error}>{data&&<><Header title={data.assignmentTitle} description={data.studentName+' · Attempt '+data.attemptNumber}/><Status value={data.status}/><WorkEvidence work={data}/></>}</DataState></>
 }
 const loadStudents=()=>Promise.all([facultyStudents(),facultySessions()])
 const loadStudentDetails=()=>Promise.all([facultyStudents(),facultySessions(),facultySubmissions()])
 export function FacultyStudentDetails() {
   const {id}=useParams()
-  const {data,loading,error}=useRemote(loadStudentDetails)
+  const {data,loading,error}=useRemote(loadStudentDetails,id, {interval: 5000})
   const [students,attempts,submissions]=data||[[],[],[]]
   const student=students.find(s=>s.id===id)
   return <><Link className="back-link" to="/faculty/students">All students</Link><DataState loading={loading} error={error}>{student?<><Header title={student.name} description={student.email+' · '+student.status}/><h2>Assignment attempts</h2><AttemptsTable data={attempts.filter(a=>a.studentId===id)}/><h2>Submissions and grades</h2><SubmissionsTable data={submissions.filter(s=>s.studentId===id)}/></>:<div className="state-card">Student not found.</div>}</DataState></>
 }
 export function FacultyStudents() {
-  const {data,loading,error}=useRemote(loadStudents)
+  const {data,loading,error}=useRemote(loadStudents, null, {interval: 5000})
   const [students,attempts]=data||[[],[]]
   return <><Header title="Students" description="Registered students and their assignment activity."/><DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Attempts</th><th>Latest score</th></tr></thead><tbody>{students.map(s=>{const work=attempts.filter(a=>a.studentId===s.id);return <tr key={s.id}><td><Link to={'/faculty/students/'+s.id}>{s.name}</Link></td><td>{s.email}</td><td><Status value={s.status}/></td><td>{work.length}</td><td>{work[0]?.automatedScore??'—'}</td></tr>})}</tbody></table></div></DataState></>
 }
@@ -93,7 +93,7 @@ function SubmissionsTable({data=[]}) {
   return data.length?<div className="table-wrap"><table><thead><tr><th>Student</th><th>Assignment</th><th>Submitted</th><th>Status</th><th>Automated</th><th>Faculty</th><th></th></tr></thead><tbody>{data.map(s=><tr key={s.id}><td>{s.studentName}</td><td>{s.assignmentTitle}</td><td>{new Date(s.submittedAt).toLocaleString()}</td><td><Status value={s.status}/></td><td>{s.automatedScore}</td><td>{s.facultyGrade??'—'}</td><td><Link to={'/faculty/submissions/'+s.id}>Review</Link></td></tr>)}</tbody></table></div>:<div className="state-card">No submissions found.</div>
 }
 export function FacultySubmissions() {
-  const {data,loading,error,reload}=useRemote(facultySubmissions)
+  const {data,loading,error,reload}=useRemote(facultySubmissions, null, {interval: 3000})
   return <><Header title="Student submissions" description="Review actual solution code, test results and transcripts." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/><DataState loading={loading} error={error}><SubmissionsTable data={data}/></DataState></>
 }
 export function FacultyReview() {

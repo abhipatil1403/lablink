@@ -2,6 +2,8 @@ import {BrowserRouter,Navigate,Route,Routes} from 'react-router-dom'
 import {AuthProvider} from './AuthProvider'
 import {useAuth} from './authContext'
 import {LoginPage,RegisterPage} from './pages/AuthPages'
+import {LandingPage,NotFoundPage} from './pages/PublicPages'
+import {dashboardFor} from './workspaces'
 import {logout} from './services/authService'
 import {AppLayout,StudentLayout} from './StudentLayout'
 import {ExperimentCatalog,ExperimentDetails,SessionDetails,StudentAttempts,StudentDashboard,StudentProfile,SubmissionDetails,SubmissionHistory} from './pages/StudentPages'
@@ -29,20 +31,17 @@ const adminLinks=[
 function Protected({role,children}) {
   const {profile,loading,error}=useAuth()
   if(loading)return <main className="centered-state">Loading LabLink…</main>
+  if(!profile)return <Navigate to={'/login/'+role.toLowerCase()} replace/>
   if(error)return <main className="centered-state"><p role="alert">{error}</p><button onClick={logout}>Log out</button></main>
-  if(!profile)return <Navigate to="/login" replace/>
-  if(profile.role!==role)return <Navigate to={'/'+profile.role.toLowerCase()} replace/>
+  if(!dashboardFor(profile.role))return <main className="centered-state"><h1>Workspace unavailable</h1><p>This account has no supported workspace. Contact your laboratory administrator.</p><button onClick={logout}>Log out</button></main>
+  if(profile.role!==role)return <Navigate to={dashboardFor(profile.role)} replace/>
   return children
-}
-function Start() {
-  const {profile,loading}=useAuth()
-  if(loading)return <main className="centered-state">Loading LabLink…</main>
-  return <Navigate to={profile?'/'+profile.role.toLowerCase():'/login'} replace/>
 }
 export function App() {
   return <BrowserRouter><AuthProvider><Routes>
-    <Route path="/" element={<Start/>}/>
+    <Route path="/" element={<LandingPage/>}/>
     <Route path="/login" element={<LoginPage/>}/>
+    <Route path="/login/:workspace" element={<LoginPage/>}/>
     <Route path="/register" element={<RegisterPage/>}/>
     <Route element={<Protected role="STUDENT"><StudentLayout/></Protected>}>
       <Route path="/student" element={<StudentDashboard/>}/>
@@ -85,6 +84,6 @@ export function App() {
       <Route path="/admin/profile" element={<StudentProfile/>}/>
       <Route path="/admin/audit" element={<AdminAudit/>}/>
     </Route>
-    <Route path="*" element={<Navigate to="/" replace/>}/>
+    <Route path="*" element={<NotFoundPage/>}/>
   </Routes></AuthProvider></BrowserRouter>
 }
