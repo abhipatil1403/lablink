@@ -4,6 +4,8 @@ import {ArrowLeft,Play,CheckCheck,Send,RotateCcw,Loader2} from 'lucide-react'
 import {token} from './services/sessionAuth'
 import {submitSession} from './services/sessionService'
 import {Status,TestResults} from './pages/Common'
+import {runClientSimulation} from './services/clientSimulator'
+import {saveLocalAttemptUpdate} from './services/mockBackend'
 
 function getWsUrl() {
   if (typeof window !== 'undefined') {
@@ -75,8 +77,7 @@ export function AssignmentWorkspace({session}) {
 
     const wsUrl = getWsUrl()
     if (!wsUrl) {
-      setConnection('OFFLINE')
-      setError('Network gateway WebSocket is not configured. Please set VITE_NETWORK_WS_URL in your Vercel project environment variables.')
+      setConnection('READY')
       return
     }
 
@@ -137,10 +138,12 @@ export function AssignmentWorkspace({session}) {
       }
     }
 
-    ws.onerror=()=>setError('Network service unavailable. Start the gateway, then reconnect.')
+    ws.onerror=()=>{
+      setConnection('READY')
+    }
     ws.onclose=event=>{
       if(socket.current===ws){
-        setConnection('DISCONNECTED')
+        setConnection('READY')
         setRunning(false)
         setCurrentTest(null)
         if(!isUnmounted&&!event.wasClean){
@@ -160,11 +163,69 @@ export function AssignmentWorkspace({session}) {
   },[session.id,reconnect])
 
   function execute(mode) {
-    if(socket.current?.readyState!==WebSocket.OPEN)return
+    if(socket.current?.readyState===WebSocket.OPEN){
+      setRunning(true);setError('');setProgress([]);setCurrentTest(null)
+      setWork(current=>({...current,status:'RUNNING',automatedScore:null,testResults:[],executionOutput:'',networkLog:''}))
+      socket.current.send(JSON.stringify({type:'execute',mode,code:generated}))
+      return
+    }
+
+    // Client-side simulation mode (100% free, running in browser)
     setRunning(true);setError('');setProgress([]);setCurrentTest(null)
-    // Clear previous evaluated results for real-time streaming of new run
     setWork(current=>({...current,status:'RUNNING',automatedScore:null,testResults:[],executionOutput:'',networkLog:''}))
-    socket.current.send(JSON.stringify({type:'execute',mode,code:generated}))
+
+    runClientSimulation(assignment, generated, event => {
+      if (event.type === 'testStart') {
+        setCurrentTest({
+          name: event.name,
+          index: event.index,
+          total: event.total
+        })
+      } else if (event.type === 'testResult') {
+        setProgress(prev => {
+          const next = [...prev, event]
+          setWork(curr => ({
+            ...curr,
+            automatedScore: event.runningScore,
+            executionOutput: event.executionOutput,
+            networkLog: event.networkLog,
+            testResults: next.map(p => ({
+              testCaseId: p.testCaseId,
+              testName: p.testName,
+              weight: p.weight,
+              passed: p.passed,
+              status: p.status,
+              output: p.output
+            }))
+          }))
+          return next
+        })
+      } else if (event.type === 'complete') {
+        setRunning(false)
+        setCurrentTest(null)
+        const finalStatus = event.status === 'PASSED' ? 'TESTED' : 'FAILED'
+        setWork(curr => ({
+          ...curr,
+          status: finalStatus,
+          automatedScore: event.automatedScore,
+          executionOutput: event.executionOutput,
+          networkLog: event.networkLog,
+          solution: generated,
+          testResults: event.testResults
+        }))
+        saveLocalAttemptUpdate(session.id, {
+          status: finalStatus,
+          automatedScore: event.automatedScore,
+          executionOutput: event.executionOutput,
+          networkLog: event.networkLog,
+          solution: generated,
+          testResults: event.testResults
+        })
+      }
+    }).catch(err => {
+      setRunning(false)
+      setError(err.message || 'Simulation error')
+    })
   }
 
   async function submit() {

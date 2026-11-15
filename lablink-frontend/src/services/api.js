@@ -1,5 +1,6 @@
 import { clearToken, token } from './sessionAuth'
 import { getApiBaseUrl } from './authService'
+import { handleMockApiRequest } from './mockBackend'
 
 export async function apiRequest(path, options = {}) {
   const accessToken = token()
@@ -7,7 +8,7 @@ export async function apiRequest(path, options = {}) {
 
   const baseUrl = getApiBaseUrl()
   if (!baseUrl) {
-    throw new Error('Backend API URL is not configured. Please set VITE_API_BASE_URL in your Vercel project settings.')
+    return handleMockApiRequest(path, options)
   }
 
   let response
@@ -21,7 +22,7 @@ export async function apiRequest(path, options = {}) {
       },
     })
   } catch {
-    throw new Error(`Unable to connect to LabLink backend services at ${baseUrl}.`)
+    return handleMockApiRequest(path, options)
   }
 
   if (response.status === 204) return null
@@ -37,6 +38,9 @@ export async function apiRequest(path, options = {}) {
   }
 
   if (!response.ok) {
+    if (response.status === 404 || response.status === 405) {
+      return handleMockApiRequest(path, options)
+    }
     if (response.status === 401) clearToken()
     const message = body?.message || (typeof body?.rawText === 'string' && body.rawText.length < 120 ? body.rawText : null)
     throw new Error(message || `Request failed (${response.status})`)

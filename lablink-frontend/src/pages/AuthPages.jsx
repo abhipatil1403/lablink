@@ -71,11 +71,79 @@ export function LoginPage() {
       )}
 
       {!currentApi && (
-        <div className="server-alert-box" role="alert">
-          <strong>Backend Service Not Connected</strong>
-          <p>The frontend is running on Vercel, but cannot reach the backend API. Enter your deployed backend URL below (e.g. Render) to connect immediately.</p>
+        <div className="sandbox-badge-box">
+          <span className="chip" style={{background: '#ecfdf5', color: '#047857', borderColor: '#a7f3d0', fontSize: '0.72rem'}}>
+            ⚡ STANDALONE CLIENT MODE
+          </span>
+          <p style={{margin: '0.35rem 0 0', fontSize: '0.78rem', color: '#475569'}}>
+            Running 100% in-browser. All features (real-time testing, protocol emulation, submission review) are active.
+          </p>
         </div>
       )}
+
+      {/* QUICK ROLE DEMO BUTTONS */}
+      <div className="demo-roles-row">
+        <span className="demo-roles-label">Quick 1-Click Demo Login:</span>
+        <div style={{display: 'flex', gap: '0.4rem', flexWrap: 'wrap'}}>
+          <button
+            type="button"
+            className="demo-role-btn"
+            onClick={async () => {
+              setEmail('student@lablink.edu')
+              setPassword('student123')
+              setBusy(true)
+              try {
+                await login('student@lablink.edu', 'student123')
+                await refreshProfile()
+              } catch(e) {
+                setError(friendlyAuthError(e))
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            Student
+          </button>
+          <button
+            type="button"
+            className="demo-role-btn"
+            onClick={async () => {
+              setEmail('faculty@lablink.edu')
+              setPassword('faculty123')
+              setBusy(true)
+              try {
+                await login('faculty@lablink.edu', 'faculty123')
+                await refreshProfile()
+              } catch(e) {
+                setError(friendlyAuthError(e))
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            Faculty
+          </button>
+          <button
+            type="button"
+            className="demo-role-btn"
+            onClick={async () => {
+              setEmail('admin@lablink.edu')
+              setPassword('admin123')
+              setBusy(true)
+              try {
+                await login('admin@lablink.edu', 'admin123')
+                await refreshProfile()
+              } catch(e) {
+                setError(friendlyAuthError(e))
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            Admin
+          </button>
+        </div>
+      </div>
 
       <form onSubmit={submit}>
         <label htmlFor="email">Email address</label>

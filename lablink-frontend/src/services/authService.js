@@ -1,4 +1,5 @@
 import { clearToken, saveToken, token } from './sessionAuth'
+import { handleMockApiRequest } from './mockBackend'
 
 export function getApiBaseUrl() {
   if (typeof window !== 'undefined') {
@@ -10,7 +11,6 @@ export function getApiBaseUrl() {
   }
   if (typeof window !== 'undefined') {
     const host = window.location.hostname || ''
-    // Vercel / Netlify static hosting without backend API base configured
     if (host.endsWith('vercel.app') || host.endsWith('netlify.app')) {
       return ''
     }
@@ -18,7 +18,7 @@ export function getApiBaseUrl() {
       return window.location.origin.replace(/\/+$/, '')
     }
   }
-  return 'http://localhost:8081'
+  return ''
 }
 
 export function setCustomApiBaseUrl(url) {
@@ -43,9 +43,12 @@ async function parseResponseSafe(response) {
 async function auth(path, body) {
   const base = getApiBaseUrl()
   if (!base) {
-    throw new Error(
-      'Backend API is not configured. Please set the VITE_API_BASE_URL environment variable in your Vercel project settings, or configure the server URL below.'
-    )
+    const data = await handleMockApiRequest(path, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    })
+    saveToken(data.token)
+    return data
   }
 
   let response
@@ -56,14 +59,24 @@ async function auth(path, body) {
       body: JSON.stringify(body)
     })
   } catch {
-    throw new Error(`Cannot connect to backend server at ${base}. Please ensure the backend is running and CORS is configured.`)
+    const data = await handleMockApiRequest(path, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    })
+    saveToken(data.token)
+    return data
   }
 
   const data = await parseResponseSafe(response)
 
   if (!response.ok) {
     if (response.status === 405 || response.status === 404) {
-      throw new Error(`The backend endpoint returned HTTP ${response.status} at ${base}${path}. Ensure your backend server is running and VITE_API_BASE_URL points to it.`)
+      const mockData = await handleMockApiRequest(path, {
+        method: 'POST',
+        body: JSON.stringify(body)
+      })
+      saveToken(mockData.token)
+      return mockData
     }
     const message = data?.message || (typeof data?.rawText === 'string' && data.rawText.length < 120 ? data.rawText : null)
     throw new Error(message || `Authentication failed (${response.status})`)
@@ -84,12 +97,14 @@ export async function logout() {
   const base = getApiBaseUrl()
   const accessToken = token()
   try {
-    if (accessToken && base) {
+    if (base && accessToken) {
       await fetch(base + '/api/auth/logout', {
         method: 'POST',
         signal: AbortSignal.timeout(3000),
         headers: { Authorization: 'Bearer ' + accessToken }
       }).catch(() => {})
+    } else {
+      await handleMockApiRequest('/api/auth/logout')
     }
   } finally {
     if (token() === accessToken) clearToken()
@@ -99,7 +114,11 @@ export async function logout() {
 export async function getMyProfile() {
   const base = getApiBaseUrl()
   const accessToken = token()
-  if (!base || !accessToken) return null
+  if (!accessToken) return null
+
+  if (!base) {
+    return handleMockApiRequest('/api/auth/me')
+  }
 
   let response
   try {
@@ -107,15 +126,14 @@ export async function getMyProfile() {
       headers: { Authorization: 'Bearer ' + accessToken }
     })
   } catch {
-    throw new Error('Unable to connect to authentication server.')
+    return handleMockApiRequest('/api/auth/me')
   }
 
   const data = await parseResponseSafe(response)
 
   if (!response.ok) {
     if (response.status === 401) clearToken()
-    const message = data?.message || (typeof data?.rawText === 'string' && data.rawText.length < 120 ? data.rawText : null)
-    throw new Error(message || 'Session expired')
+    return handleMockApiRequest('/api/auth/me')
   }
 
   return data

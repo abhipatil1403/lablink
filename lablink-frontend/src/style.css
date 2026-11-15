@@ -35,6 +35,11 @@ a { color: #244daa; font-weight: 650; }
 .server-config-toggle:hover { color: #1e293b; background: #f1f5f9; }
 .server-save-btn { border: none; background: #2563eb; color: #ffffff !important; border-radius: 6px; padding: 0 .9rem; font-size: .82rem; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background-color .15s; }
 .server-save-btn:hover { background: #1d4ed8; }
+.sandbox-badge-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: .65rem .85rem; margin-bottom: 1rem; }
+.demo-roles-row { margin-bottom: 1.2rem; padding: .65rem .85rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; display: flex; flex-direction: column; gap: .45rem; }
+.demo-roles-label { font-size: .72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+.demo-role-btn { background: #ffffff; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 600; font-size: .78rem; padding: .35rem .75rem; border-radius: 6px; cursor: pointer; transition: all .15s ease; }
+.demo-role-btn:hover { background: #2563eb; color: #ffffff !important; border-color: #2563eb; }
 .auth-switch { text-align: center; margin-top: 1.8rem !important; }
 .centered-state { min-height: 100vh; display: grid; place-content: center; text-align: center; padding: 2rem; }
 @media (max-width: 800px) { .auth-page { grid-template-columns: 1fr; } .auth-intro { min-height: 220px; padding: 2rem; gap: 2rem; } .auth-intro h2 { font-size: 2.3rem; max-width: none; } .auth-intro small, .auth-intro p:not(.eyebrow) { display: none; } .auth-panel { min-height: 60vh; } }
