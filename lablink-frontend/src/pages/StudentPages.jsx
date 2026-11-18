@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
-import {ArrowLeft,ArrowRight,BookOpen,CheckCircle2,ClipboardList,Clock3,Wifi} from 'lucide-react'
+import {ArrowLeft,ArrowRight,CheckCircle2,Clock3,Code2,Compass,FileCheck,Globe,Network,Radio,Server,Zap} from 'lucide-react'
 import {useAuth} from '../authContext'
 import {useRemote} from '../hooks/useRemote'
 import {getExperiment,listExperiments} from '../services/experimentService'
@@ -9,6 +9,18 @@ import {AssignmentWorkspace} from '../AssignmentWorkspace'
 import {DataState,Header,Status,WorkEvidence} from './Common'
 
 const loadDashboard=()=>Promise.all([listExperiments(),listSubmissions()])
+
+function getProtocolIcon(protocol) {
+  switch ((protocol || '').toUpperCase()) {
+    case 'TCP': return <Network size={20} />
+    case 'UDP': return <Radio size={20} />
+    case 'HTTP':
+    case 'REST': return <Globe size={20} />
+    case 'DNS': return <Compass size={20} />
+    case 'WEBSOCKET': return <Zap size={20} />
+    default: return <Server size={20} />
+  }
+}
 
 function AssignmentCard({assignment}) {
   const concepts = assignment.networkingConcepts || assignment.concepts || []
@@ -19,7 +31,9 @@ function AssignmentCard({assignment}) {
   return (
     <article className="experiment-card">
       <div className="card-top">
-        <span className="protocol-icon"><Wifi size={21}/></span>
+        <span className="protocol-icon" title={assignment.protocol + ' Protocol'}>
+          {getProtocolIcon(assignment.protocol)}
+        </span>
         <Status value={assignment.status || 'ACTIVE'}/>
       </div>
       <div className="chip-row">
@@ -51,10 +65,10 @@ export function StudentDashboard() {
   const validSubmissions = Array.isArray(submissions) ? submissions : []
 
   const metrics = [
-    ['Available assignments', validAssignments.filter(a => a.status === 'ACTIVE').length, BookOpen],
+    ['Available assignments', validAssignments.filter(a => a.status === 'ACTIVE').length, Code2],
     ['Submitted assignments', new Set(validSubmissions.map(s => s.assignmentId)).size, CheckCircle2],
     ['Pending reviews', validSubmissions.filter(s => s.status === 'SUBMITTED').length, Clock3],
-    ['Total submissions', validSubmissions.length, ClipboardList]
+    ['Total submissions', validSubmissions.length, FileCheck]
   ]
 
   const firstName = profile?.name ? profile.name.split(' ')[0] : 'Student'

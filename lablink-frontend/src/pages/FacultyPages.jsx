@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useState} from 'react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
-import {ArrowLeft,ArrowRight,BookOpen,ClipboardCheck,Clock3,Users} from 'lucide-react'
+import {ArrowLeft,ArrowRight,CheckCircle2,ClipboardCheck,Clock3,Code2,GraduationCap,History} from 'lucide-react'
 import {useAuth} from '../authContext'
 import {useRemote} from '../hooks/useRemote'
 import {getExperiment,listExperiments} from '../services/experimentService'
@@ -10,8 +10,12 @@ import {DataState,Header,Status,WorkEvidence} from './Common'
 export function FacultyDashboard() {
   const {data,loading,error,reload}=useRemote(facultyDashboard, null, {interval: 3000})
   const metrics=data?[
-    ['Assignments',data.totalExperiments,BookOpen],['Active assignments',data.activeExperiments,BookOpen],['Active students',data.activeStudents,Users],
-    ['Active attempts',data.activeSessions,Users],['Pending reviews',data.pendingReviews,Clock3],['Completed submissions',data.completedSubmissions,ClipboardCheck]
+    ['Assignments',data.totalExperiments,Code2],
+    ['Active assignments',data.activeExperiments,CheckCircle2],
+    ['Active students',data.activeStudents,GraduationCap],
+    ['Active attempts',data.activeSessions,History],
+    ['Pending reviews',data.pendingReviews,Clock3],
+    ['Completed submissions',data.completedSubmissions,ClipboardCheck]
   ]:[]
   return <><Header eyebrow="FACULTY DASHBOARD" title="Laboratory overview" description="Monitor student work and review networking solutions." action={<button className="secondary-button" onClick={reload}>Refresh</button>}/><DataState loading={loading} error={error}><div className="metric-grid faculty-metrics">{metrics.map(([label,value,Icon])=><article className="metric-card" key={label}><span className="metric-icon"><Icon size={22}/></span><strong>{value}</strong><span>{label}</span></article>)}</div><div className="section-heading"><h2>Pending reviews</h2><Link to="/faculty/submissions">All submissions <ArrowRight size={16}/></Link></div><SubmissionsTable data={data?.pendingSubmissions}/><div className="section-heading"><h2>Recent attempts</h2></div><AttemptsTable data={data?.recentSessions}/></DataState></>
 }

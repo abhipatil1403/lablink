@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import { BookOpen, ClipboardList, FlaskConical, Home, LayoutDashboard, LogOut, UserRound, X } from 'lucide-react'
+import { ClipboardCheck, Code2, FlaskConical, History, Home, LayoutDashboard, LogOut, UserRound, X } from 'lucide-react'
 import { useAuth } from './authContext'
 import { logout } from './services/authService'
 
 const studentLinks = [
   { to: '/student', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/student/assignments', label: 'Assignments', icon: BookOpen },
-  { to: '/student/attempts', label: 'Attempts', icon: ClipboardList },
-  { to: '/student/submissions', label: 'Submissions', icon: ClipboardList },
+  { to: '/student/assignments', label: 'Assignments', icon: Code2 },
+  { to: '/student/attempts', label: 'Attempts', icon: History },
+  { to: '/student/submissions', label: 'Submissions', icon: ClipboardCheck },
   { to: '/student/profile', label: 'My profile', icon: UserRound },
 ]
 

@@ -9,23 +9,23 @@ import {AppLayout,StudentLayout} from './StudentLayout'
 import {ExperimentCatalog,ExperimentDetails,SessionDetails,StudentAttempts,StudentDashboard,StudentProfile,SubmissionDetails,SubmissionHistory} from './pages/StudentPages'
 import {FacultyAttempt,FacultyDashboard,FacultyExperimentForm,FacultyExperiments,FacultyReview,FacultySessions,FacultyStudentDetails,FacultyStudents,FacultySubmissions} from './pages/FacultyPages'
 import {AdminAudit,AdminDashboard,AdminServers,AdminSystemStatus,AdminUserDetails,AdminUsers} from './pages/AdminPages'
-import {BookOpen,ClipboardCheck,LayoutDashboard,Server,Users,Activity,UserRound} from 'lucide-react'
+import {ClipboardCheck,Code2,GraduationCap,HeartPulse,History,LayoutDashboard,ScrollText,Server,UserRound,Users} from 'lucide-react'
 
 const facultyLinks=[
   {to:'/faculty',label:'Dashboard',icon:LayoutDashboard,end:true},
-  {to:'/faculty/assignments',label:'Assignments',icon:BookOpen},
-  {to:'/faculty/students',label:'Students',icon:Users},
-  {to:'/faculty/sessions',label:'Student attempts',icon:Activity},
+  {to:'/faculty/assignments',label:'Assignments',icon:Code2},
+  {to:'/faculty/students',label:'Students',icon:GraduationCap},
+  {to:'/faculty/sessions',label:'Student attempts',icon:History},
   {to:'/faculty/submissions',label:'Submissions',icon:ClipboardCheck},
   {to:'/faculty/profile',label:'Profile',icon:UserRound},
 ]
 const adminLinks=[
   {to:'/admin',label:'Dashboard',icon:LayoutDashboard,end:true},
   {to:'/admin/users',label:'Users',icon:Users},
-  {to:'/admin/assignments',label:'Assignments',icon:BookOpen},
+  {to:'/admin/assignments',label:'Assignments',icon:Code2},
   {to:'/admin/servers',label:'Servers',icon:Server},
-  {to:'/admin/status',label:'System status',icon:Activity},
-  {to:'/admin/audit',label:'Audit history',icon:Activity},
+  {to:'/admin/status',label:'System status',icon:HeartPulse},
+  {to:'/admin/audit',label:'Audit history',icon:ScrollText},
   {to:'/admin/profile',label:'Profile',icon:UserRound},
 ]
 function Protected({role,children}) {

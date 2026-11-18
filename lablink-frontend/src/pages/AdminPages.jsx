@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {Link,useParams} from 'react-router-dom'
-import {Activity,BookOpen,ClipboardList,Server,Users} from 'lucide-react'
+import {CheckCircle2,ClipboardCheck,Clock3,Code2,GraduationCap,History,Server,ShieldCheck,UserCheck,Users} from 'lucide-react'
 import {useRemote} from '../hooks/useRemote'
 import {adminAudit,adminDashboard,adminServers,adminUser,adminUsers,createFaculty,setServerStatus,setUserStatus} from '../services/adminService'
 import {DataState,Header,Status} from './Common'
@@ -8,9 +8,16 @@ import {DataState,Header,Status} from './Common'
 export function AdminDashboard() {
   const {data,loading,error,reload}=useRemote(adminDashboard, null, {interval: 3000})
   const metrics=data?[
-    ['Users',data.totalUsers,Users],['Students',data.students,Users],['Faculty',data.faculty,Users],['Admins',data.admins,Users],['Pending reviews',data.pendingReviews,ClipboardList],
-    ['Assignments',data.experiments,BookOpen],['Active assignments',data.activeExperiments,BookOpen],
-    ['Active attempts',data.activeSessions,Activity],['Submissions',data.submissions,ClipboardList],['Network services',data.experimentServers,Server]
+    ['Users',data.totalUsers,Users],
+    ['Students',data.students,GraduationCap],
+    ['Faculty',data.faculty,UserCheck],
+    ['Admins',data.admins,ShieldCheck],
+    ['Pending reviews',data.pendingReviews,Clock3],
+    ['Assignments',data.experiments,Code2],
+    ['Active assignments',data.activeExperiments,CheckCircle2],
+    ['Active attempts',data.activeSessions,History],
+    ['Submissions',data.submissions,ClipboardCheck],
+    ['Network services',data.experimentServers,Server]
   ]:[]
   return <><Header eyebrow="ADMINISTRATION" title="System overview" description="Database counts and live network gateway health." action={<button className="secondary-button" onClick={reload}>Refresh status</button>}/><DataState loading={loading} error={error}><div className="metric-grid admin-metrics">{metrics.map(([label,value,Icon])=><article className="metric-card" key={label}><span className="metric-icon"><Icon size={21}/></span><strong>{value}</strong><span>{label}</span></article>)}</div><div className="section-heading"><h2>System status</h2></div><div className="system-grid">{data&&[['REST API',data.systemStatus.api],['PostgreSQL database',data.systemStatus.database],['Network gateway',data.systemStatus.networkService]].map(([label,value])=><section className="content-card system-card" key={label}><strong>{label}</strong><Status value={value}/></section>)}</div></DataState></>
 }
