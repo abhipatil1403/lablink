@@ -66,16 +66,13 @@ export function AppLayout({ role, links }) {
         </div>
       </aside>
       <div className="app-main">
-        <header className="topbar">
-          <button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setOpen(true)}>
-            <Menu size={23} />
-          </button>
-          <span>Connected Virtual Laboratory</span>
-          <div className="topbar-user">
-            <span className="avatar avatar-small">{avatarLetter}</span>
-            <strong>{displayName}</strong>
-          </div>
-        </header>
+        <button
+          className="mobile-menu-trigger icon-button"
+          aria-label="Open navigation"
+          onClick={() => setOpen(true)}
+        >
+          <Menu size={22} />
+        </button>
         <div className="page-content">
           <Outlet />
         </div>
