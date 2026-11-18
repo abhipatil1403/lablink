@@ -74,37 +74,6 @@ const assignments = [
   {id: 7, title: 'Client-Server File Search', protocol: 'TCP', icon: Network, desc: 'Search document archives and download matching files over raw TCP sockets.'}
 ]
 
-export function PublicHeader() {
-  const {profile, loading} = useAuth()
-  const dashboard = dashboardFor(profile?.role)
-
-  return (
-    <header className="public-header public-container">
-      <Link to="/" className="public-brand" aria-label="LabLink home">
-        <span className="public-brand-icon"><FlaskConical size={24} aria-hidden="true"/></span>
-        <span>LabLink<small>Connected Virtual Laboratory</small></span>
-      </Link>
-      <nav className="public-nav" aria-label="Public navigation">
-        <a href="#workspaces">Workspaces</a>
-        <a href="#assignments">Assignments</a>
-        <a href="#how-it-works">How it works</a>
-        {!loading && dashboard ? (
-          <Link className="public-nav-action" to={dashboard}>
-            Continue to Dashboard <ArrowRight size={15} aria-hidden="true"/>
-          </Link>
-        ) : (
-          <div className="header-auth-buttons">
-            <Link className="header-link" to="/login/student">Student</Link>
-            <Link className="header-link" to="/login/faculty">Faculty</Link>
-            <Link className="header-link" to="/login/admin">Admin</Link>
-            <Link className="public-nav-action" to="/login">Sign In <ArrowRight size={15} aria-hidden="true"/></Link>
-          </div>
-        )}
-      </nav>
-    </header>
-  )
-}
-
 export function LandingPage() {
   const {profile, loading} = useAuth()
   const dashboard = dashboardFor(profile?.role)
@@ -112,13 +81,15 @@ export function LandingPage() {
   return (
     <div className="public-page">
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <PublicHeader/>
       <main id="main-content" tabIndex={-1}>
 
         {/* HERO SECTION */}
         <section className="public-hero public-container" aria-labelledby="hero-title">
           <div className="public-hero-copy">
-            <p className="public-eyebrow"><span/> CONNECTED VIRTUAL NETWORKING LABORATORY</p>
+            <p className="public-eyebrow">
+              <FlaskConical size={16} aria-hidden="true" style={{display:'inline-block',verticalAlign:'text-bottom',marginRight:'4px'}}/>
+              LABLINK · CONNECTED VIRTUAL NETWORKING LABORATORY
+            </p>
             <h1 id="hero-title">Networking concepts.<br/><span>Real connections.</span></h1>
             <p className="public-hero-description">
               Learn computer networking by building it. Write solutions in an isolated WebAssembly sandbox,
@@ -324,8 +295,11 @@ export function NotFoundPage() {
   const dashboard = dashboardFor(profile?.role)
   return (
     <div className="public-page">
-      <PublicHeader/>
       <main className="public-not-found">
+        <Link to="/" className="public-brand" style={{marginBottom: '1.5rem'}} aria-label="LabLink home">
+          <span className="public-brand-icon"><FlaskConical size={24} aria-hidden="true"/></span>
+          <span>LabLink<small>Connected Virtual Laboratory</small></span>
+        </Link>
         <p className="public-eyebrow">404 · PAGE NOT FOUND</p>
         <h1>This page isn’t in the laboratory.</h1>
         <p>Check the address or choose a workspace from the homepage.</p>
