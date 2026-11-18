@@ -272,6 +272,9 @@ export function executeStudentTest(type, testCase, studentCode) {
       `${studentCode}\n;if (typeof solve !== 'function') throw new Error('solve(input) function is not defined.');\nreturn solve(input);`
     )
     studentResult = sandboxFn(input, tcp, udp, http, dns, sha256, decodeBase64, save, guestPrint)
+    if (studentResult !== undefined) {
+      log(`Return: ${typeof studentResult === 'object' ? JSON.stringify(studentResult) : String(studentResult)}`)
+    }
   } catch (err) {
     executionError = err.message || String(err)
     log(`Execution error: ${executionError}`)
