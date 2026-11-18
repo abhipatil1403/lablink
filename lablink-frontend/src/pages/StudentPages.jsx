@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
-import {ArrowLeft,ArrowRight,CheckCircle2,Clock3,Code2,Compass,FileCheck,Globe,Network,Radio,Server,Zap} from 'lucide-react'
+import {ArrowLeft,ArrowRight,Award,CheckCircle2,Clock3,Code2,Compass,FileCheck,Globe,History,Network,Radio,Server,Zap} from 'lucide-react'
 import {useAuth} from '../authContext'
 import {useRemote} from '../hooks/useRemote'
 import {getExperiment,listExperiments} from '../services/experimentService'
@@ -45,11 +45,29 @@ function AssignmentCard({assignment}) {
       <div className="chip-row">
         {concepts.map(concept => <span className="chip" key={concept}>{concept}</span>)}
       </div>
-      <p className="subtle-note">
-        {attemptCount} {attemptCount === 1 ? 'attempt' : 'attempts'} · {statusFormatted}
-        {assignment.latestScore !== null && assignment.latestScore !== undefined ? ` · Score: ${assignment.latestScore}/100` : ''}
-        {assignment.deadline && !isNaN(new Date(assignment.deadline).getTime()) ? ' · Due ' + new Date(assignment.deadline).toLocaleString() : ''}
-      </p>
+      <div className="assignment-status-bar">
+        <div className="status-meta-group">
+          <span className="attempt-badge">
+            <History size={13} />
+            <span>{attemptCount} {attemptCount === 1 ? 'attempt' : 'attempts'}</span>
+          </span>
+          <span className={`status-pill status-${submissionStatus.toLowerCase()}`}>
+            {statusFormatted}
+          </span>
+          {assignment.latestScore !== null && assignment.latestScore !== undefined && (
+            <span className="score-pill">
+              <Award size={13} />
+              <span>{assignment.latestScore}/100</span>
+            </span>
+          )}
+        </div>
+        {assignment.deadline && !isNaN(new Date(assignment.deadline).getTime()) && (
+          <div className="deadline-tag">
+            <Clock3 size={12} />
+            <span>Due {new Date(assignment.deadline).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+        )}
+      </div>
       <Link className="card-link" to={'/assignment/' + assignment.id}>
         View assignment <ArrowRight size={16}/>
       </Link>
@@ -181,11 +199,24 @@ export function ExperimentDetails() {
                   <p>{a.serverRequirement || 'Controlled network service'}</p>
                   <Status value={a.status || 'ACTIVE'}/>
                   <p>{a.deadline && !isNaN(new Date(a.deadline).getTime()) ? 'Due ' + new Date(a.deadline).toLocaleString() : 'No deadline set'}</p>
-                  {a.attempts != null && (
-                    <p className="subtle-note" style={{marginTop: '0.6rem'}}>
-                      <strong>Your status:</strong> {typeof a.submissionStatus === 'string' ? a.submissionStatus.replaceAll('_', ' ') : 'NOT STARTED'} ({a.attempts} {a.attempts === 1 ? 'attempt' : 'attempts'})
-                      {a.latestScore != null ? ` · Score: ${a.latestScore}/100` : ''}
-                    </p>
+                </section>
+                <section className="content-card progress-summary-card">
+                  <h2>Your Progress</h2>
+                  <div className="progress-stat-row">
+                    <span className="stat-label">Total attempts</span>
+                    <span className="attempt-badge"><History size={13} /> {a.attempts ?? 0}</span>
+                  </div>
+                  <div className="progress-stat-row">
+                    <span className="stat-label">Current status</span>
+                    <span className={`status-pill status-${(a.submissionStatus || 'NOT_STARTED').toLowerCase()}`}>
+                      {typeof a.submissionStatus === 'string' ? a.submissionStatus.replaceAll('_', ' ') : 'NOT STARTED'}
+                    </span>
+                  </div>
+                  {a.latestScore !== null && a.latestScore !== undefined && (
+                    <div className="progress-stat-row">
+                      <span className="stat-label">Evaluated score</span>
+                      <span className="score-pill"><Award size={13} /> {a.latestScore} / 100</span>
+                    </div>
                   )}
                 </section>
                 <section className="content-card">
@@ -259,16 +290,34 @@ export function StudentAttempts() {
                   <th>Status</th>
                   <th>Started</th>
                   <th>Score</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {list.map(a => (
                   <tr key={a.id}>
-                    <td><Link to={'/attempt/' + a.id}>{a.assignmentTitle}</Link></td>
-                    <td>{a.attemptNumber}</td>
+                    <td><Link to={'/attempt/' + a.id}><strong>{a.assignmentTitle}</strong></Link></td>
+                    <td>
+                      <span className="attempt-badge">
+                        <History size={12} /> Attempt {a.attemptNumber}
+                      </span>
+                    </td>
                     <td><Status value={a.status}/></td>
                     <td>{new Date(a.startedAt).toLocaleString()}</td>
-                    <td>{a.automatedScore ?? '—'}</td>
+                    <td>
+                      {a.automatedScore !== null && a.automatedScore !== undefined ? (
+                        <span className={`score-pill ${a.automatedScore >= 75 ? '' : 'status-returned'}`}>
+                          <Award size={12} /> {a.automatedScore} / 100
+                        </span>
+                      ) : (
+                        <span className="badge badge-muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      <Link to={'/attempt/' + a.id} className="secondary-button" style={{padding: '0.3rem 0.65rem', fontSize: '0.78rem', textDecoration: 'none'}}>
+                        {a.status === 'SUBMITTED' ? 'Inspect code' : 'Resume attempt'}
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>

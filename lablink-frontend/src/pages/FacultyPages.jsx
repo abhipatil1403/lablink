@@ -244,7 +244,7 @@ export function FacultyExperimentForm() {
   </>
 }
 function AttemptsTable({data=[]}) {
-  return data.length?<div className="table-wrap"><table><thead><tr><th>Student</th><th>Assignment</th><th>Attempt</th><th>Status</th><th>Started</th><th>Score</th><th></th></tr></thead><tbody>{data.map(a=><tr key={a.id}><td>{a.studentName}</td><td>{a.assignmentTitle}</td><td>{a.attemptNumber}</td><td><Status value={a.status}/></td><td>{new Date(a.startedAt).toLocaleString()}</td><td>{a.automatedScore??'—'}</td><td><Link to={'/faculty/sessions/'+a.id}>Inspect work</Link></td></tr>)}</tbody></table></div>:<div className="state-card">No attempts found.</div>
+  return data.length?<div className="table-wrap"><table><thead><tr><th>Student</th><th>Assignment</th><th>Attempt</th><th>Status</th><th>Started</th><th>Score</th><th></th></tr></thead><tbody>{data.map(a=><tr key={a.id}><td><strong>{a.studentName}</strong></td><td>{a.assignmentTitle}</td><td><span className="attempt-badge"><History size={12}/> Attempt {a.attemptNumber}</span></td><td><Status value={a.status}/></td><td>{new Date(a.startedAt).toLocaleString()}</td><td>{a.automatedScore !== null && a.automatedScore !== undefined ? <span className="score-pill">{a.automatedScore} / 100</span> : <span className="badge badge-muted">—</span>}</td><td><Link to={'/faculty/sessions/'+a.id}>Inspect work</Link></td></tr>)}</tbody></table></div>:<div className="state-card">No attempts found.</div>
 }
 export function FacultySessions() {
   const [filters,setFilters]=useState({assignmentId:'',status:'',date:''}),[query,setQuery]=useState('')
