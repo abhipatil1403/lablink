@@ -360,8 +360,8 @@ export function AssignmentWorkspace({session}) {
             Run "Test all" (or click "Load Solution" then "Test all") to enable submission.
           </span>
         ) : (
-          <span className="badge badge-success" style={{fontSize:'0.75rem',padding:'0.4rem 0.75rem'}}>
-            Ready to submit ({work.automatedScore ?? 100}/100)
+          <span className={`badge ${work.automatedScore === 100 ? 'badge-success' : (work.automatedScore > 0 ? 'badge-warning' : 'badge-danger')}`} style={{fontSize:'0.75rem',padding:'0.4rem 0.75rem'}}>
+            Ready to submit ({work.automatedScore ?? 0}/100)
           </span>
         )}
       </div>

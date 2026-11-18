@@ -254,6 +254,20 @@ function setStored(key, value) {
   }
 }
 
+export function calculateAutomatedScore(testResults) {
+  if (!Array.isArray(testResults) || testResults.length === 0) return 0
+  let totalWeight = 0
+  let earnedWeight = 0
+  for (const t of testResults) {
+    const w = Number(t.weight || 0)
+    totalWeight += w
+    if (t.passed === true || t.status === 'PASSED') {
+      earnedWeight += w
+    }
+  }
+  return totalWeight > 0 ? Math.round((earnedWeight / totalWeight) * 100) : 0
+}
+
 export function enrichSubmission(sub) {
   if (!sub) return sub
   sub.reviews = Array.isArray(sub.reviews) ? sub.reviews : []
@@ -265,12 +279,9 @@ export function enrichSubmission(sub) {
     if (!sub.executionOutput && att.executionOutput) sub.executionOutput = att.executionOutput
     if (!sub.networkLog && att.networkLog) sub.networkLog = att.networkLog
     if ((!sub.testResults || !sub.testResults.length) && att.testResults?.length) sub.testResults = att.testResults
-    if ((sub.automatedScore === null || sub.automatedScore === undefined) && att.automatedScore !== null && att.automatedScore !== undefined) {
-      sub.automatedScore = att.automatedScore
-    }
   }
 
-  // If still missing executionOutput or networkLog or testResults, synthesize from solution & test cases
+  // If still missing executionOutput or networkLog or testResults, evaluate with simulator
   if (!sub.executionOutput || !sub.networkLog || !sub.testResults || !sub.testResults.length) {
     const assignments = getStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
     const assignment = assignments.find(a =>
@@ -288,17 +299,11 @@ export function enrichSubmission(sub) {
     let cumulativeLog = ''
     let cumulativeNetwork = ''
     const results = []
-    let totalScore = 0
-    let maxScore = 0
 
     try {
       for (const t of tests) {
-        maxScore += Number(t.weight || 0)
         const type = t.type || assignment.slug
         const res = executeStudentTest(type, t, solutionCode)
-        if (res.passed) {
-          totalScore += Number(t.weight || 0)
-        }
         if (res.executionLog) {
           cumulativeLog += (cumulativeLog ? '\n\n' : '') + `=== ${t.name} ===\n` + res.executionLog
         }
@@ -314,30 +319,29 @@ export function enrichSubmission(sub) {
           output: res.output
         })
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      cumulativeLog = 'Execution error: ' + (err.message || String(err))
     }
 
+    sub.testResults = results.length ? results : tests.map(t => ({
+      testCaseId: t.id,
+      name: t.name,
+      weight: t.weight,
+      passed: false,
+      status: 'FAILED',
+      output: 'Test execution failed.'
+    }))
+
     if (!sub.executionOutput) {
-      sub.executionOutput = cumulativeLog || `[Simulation Engine]\nExecution initialized for ${assignment.title}.\nAll ${tests.length} automated test assertions verified.\nStudent guest routine completed normally.`
+      sub.executionOutput = cumulativeLog || 'No output recorded'
     }
     if (!sub.networkLog) {
-      sub.networkLog = cumulativeNetwork || `[${assignment.protocol}.CONNECT] (service: '${assignment.slug}') → connected\n[${assignment.protocol}.SEND] Handshake payload initiated\n[${assignment.protocol}.RECV] Protocol ACK response confirmed\n[${assignment.protocol}.CLOSE] Graceful teardown complete.`
-    }
-    if (!sub.testResults || !sub.testResults.length) {
-      sub.testResults = results.length ? results : tests.map(t => ({
-        testCaseId: t.id,
-        name: t.name,
-        weight: t.weight,
-        passed: true,
-        status: 'PASSED',
-        output: 'Expected behavior verified against actual network traffic.'
-      }))
-    }
-    if (sub.automatedScore === null || sub.automatedScore === undefined) {
-      sub.automatedScore = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 100
+      sub.networkLog = cumulativeNetwork || 'No network traffic recorded'
     }
   }
+
+  // Always compute automatedScore strictly from testResults!
+  sub.automatedScore = calculateAutomatedScore(sub.testResults)
 
   return sub
 }
@@ -361,17 +365,11 @@ export function enrichAttempt(att) {
     let cumulativeLog = ''
     let cumulativeNetwork = ''
     const results = []
-    let totalScore = 0
-    let maxScore = 0
 
     try {
       for (const t of tests) {
-        maxScore += Number(t.weight || 0)
         const type = t.type || assignment.slug
         const res = executeStudentTest(type, t, solutionCode)
-        if (res.passed) {
-          totalScore += Number(t.weight || 0)
-        }
         if (res.executionLog) {
           cumulativeLog += (cumulativeLog ? '\n\n' : '') + `=== ${t.name} ===\n` + res.executionLog
         }
@@ -387,30 +385,29 @@ export function enrichAttempt(att) {
           output: res.output
         })
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      cumulativeLog = 'Execution error: ' + (err.message || String(err))
     }
 
+    att.testResults = results.length ? results : tests.map(t => ({
+      testCaseId: t.id,
+      name: t.name,
+      weight: t.weight,
+      passed: false,
+      status: 'FAILED',
+      output: 'Test execution failed.'
+    }))
+
     if (!att.executionOutput) {
-      att.executionOutput = cumulativeLog || `[Simulation Engine]\nExecution initialized for ${assignment.title}.\nAll ${tests.length} automated test assertions verified.\nStudent guest routine completed normally.`
+      att.executionOutput = cumulativeLog || 'No output recorded'
     }
     if (!att.networkLog) {
-      att.networkLog = cumulativeNetwork || `[${assignment.protocol}.CONNECT] (service: '${assignment.slug}') → connected\n[${assignment.protocol}.SEND] Handshake payload initiated\n[${assignment.protocol}.RECV] Protocol ACK response confirmed\n[${assignment.protocol}.CLOSE] Graceful teardown complete.`
-    }
-    if (!att.testResults || !att.testResults.length) {
-      att.testResults = results.length ? results : tests.map(t => ({
-        testCaseId: t.id,
-        name: t.name,
-        weight: t.weight,
-        passed: true,
-        status: 'PASSED',
-        output: 'Expected behavior verified against actual network traffic.'
-      }))
-    }
-    if (att.automatedScore === null || att.automatedScore === undefined) {
-      att.automatedScore = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 100
+      att.networkLog = cumulativeNetwork || 'No network traffic recorded'
     }
   }
+
+  // Always compute automatedScore strictly from testResults!
+  att.automatedScore = calculateAutomatedScore(att.testResults)
 
   return att
 }
@@ -791,7 +788,7 @@ export async function handleMockApiRequest(path, options = {}) {
       assignmentTitle: att.assignmentTitle,
       assignmentSlug: att.assignmentSlug || att.assignment?.slug,
       solution: att.solution,
-      automatedScore: att.automatedScore !== null && att.automatedScore !== undefined ? att.automatedScore : 100,
+      automatedScore: att.automatedScore !== null && att.automatedScore !== undefined ? att.automatedScore : (att.testResults?.length ? calculateAutomatedScore(att.testResults) : 0),
       testResults: att.testResults || [],
       executionOutput: att.executionOutput || '',
       networkLog: att.networkLog || '',
