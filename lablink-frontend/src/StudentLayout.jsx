@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import { BookOpen, ClipboardList, FlaskConical, Home, LayoutDashboard, LogOut, Menu, UserRound, X } from 'lucide-react'
+import { BookOpen, ClipboardList, FlaskConical, Home, LayoutDashboard, LogOut, UserRound, X } from 'lucide-react'
 import { useAuth } from './authContext'
 import { logout } from './services/authService'
 
@@ -66,13 +66,6 @@ export function AppLayout({ role, links }) {
         </div>
       </aside>
       <div className="app-main">
-        <button
-          className="mobile-menu-trigger icon-button"
-          aria-label="Open navigation"
-          onClick={() => setOpen(true)}
-        >
-          <Menu size={22} />
-        </button>
         <div className="page-content">
           <Outlet />
         </div>

@@ -130,7 +130,6 @@ a { color: #244daa; font-weight: 650; }
   overflow-x: hidden;
 }
 .topbar { display: none !important; }
-.mobile-menu-trigger { display: none; }
 .page-content { max-width: 1400px; margin: 0 auto; padding: 2.4rem; }
 .page-heading { margin-bottom: 2rem; }
 .page-heading h1 { font-size: clamp(1.8rem, 2.4vw, 2.5rem); line-height: 1.13; letter-spacing: -.045em; margin: .4rem 0 .6rem; }
@@ -208,31 +207,18 @@ tbody tr:last-child td { border: 0; }
   .sidebar-open { transform: translateX(0); }
   .drawer-scrim { display: block; position: fixed; inset: 0; z-index: 90; background: #0c1b38aa; border: 0; width: 100%; }
   .mobile-close { display: grid; }
-  .mobile-menu-trigger {
-    display: grid;
-    position: fixed;
-    top: 0.85rem;
-    left: 0.85rem;
-    z-index: 40;
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 0.45rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  }
   .app-main {
     height: auto;
     overflow-y: visible;
   }
   .page-content {
     padding: 1.4rem;
-    padding-top: 3.5rem;
   }
   .detail-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   .metric-grid, .experiment-grid { grid-template-columns: 1fr; }
-  .page-content { padding: 1rem; padding-top: 3.5rem; }
+  .page-content { padding: 1rem; }
 }
 .terminal-card { overflow: hidden; background: #101a2e; color: #dfe9fc; border: 1px solid #253752; border-radius: 13px; box-shadow: 0 12px 36px #142a4b18; }
 .terminal-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.4rem; background: #17263f; border-bottom: 1px solid #2d405b; }
