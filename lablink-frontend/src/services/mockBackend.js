@@ -268,21 +268,45 @@ export function calculateAutomatedScore(testResults) {
   return totalWeight > 0 ? Math.round((earnedWeight / totalWeight) * 100) : 0
 }
 
+function isMatchingStudent(record, user) {
+  if (!record || !user) return false
+  if (record.studentId && user.id && record.studentId === user.id) return true
+  if (record.studentEmail && user.email && record.studentEmail.toLowerCase() === user.email.toLowerCase()) return true
+  return false
+}
+
 export function enrichSubmission(sub) {
   if (!sub) return sub
   sub.reviews = Array.isArray(sub.reviews) ? sub.reviews : []
 
   // Check matching attempt first
   const attempts = getStored(STORAGE_KEYS.ATTEMPTS, [])
-  const att = attempts.find(a => a.id === sub.attemptId || (a.studentId === sub.studentId && String(a.assignmentId) === String(sub.assignmentId)))
+  const att = attempts.find(a =>
+    a.id === sub.attemptId ||
+    (isMatchingStudent(a, { id: sub.studentId, email: sub.studentEmail }) &&
+     (String(a.assignmentId) === String(sub.assignmentId) || a.assignmentSlug === sub.assignmentSlug))
+  )
   if (att) {
-    if (!sub.executionOutput && att.executionOutput) sub.executionOutput = att.executionOutput
-    if (!sub.networkLog && att.networkLog) sub.networkLog = att.networkLog
-    if ((!sub.testResults || !sub.testResults.length) && att.testResults?.length) sub.testResults = att.testResults
+    if ((!sub.executionOutput || sub.executionOutput === 'No output recorded') && att.executionOutput && att.executionOutput !== 'No output recorded') {
+      sub.executionOutput = att.executionOutput
+    }
+    if ((!sub.networkLog || sub.networkLog === 'No network traffic recorded') && att.networkLog && att.networkLog !== 'No network traffic recorded') {
+      sub.networkLog = att.networkLog
+    }
+    if ((!sub.testResults || !sub.testResults.length) && att.testResults?.length) {
+      sub.testResults = att.testResults
+    }
   }
 
-  // If still missing executionOutput or networkLog or testResults, evaluate with simulator
-  if (!sub.executionOutput || !sub.networkLog || !sub.testResults || !sub.testResults.length) {
+  // If still missing or placeholder executionOutput, networkLog or testResults, evaluate with simulator
+  const needsEval = !sub.executionOutput ||
+                    sub.executionOutput === 'No output recorded' ||
+                    !sub.networkLog ||
+                    sub.networkLog === 'No network traffic recorded' ||
+                    !sub.testResults ||
+                    !sub.testResults.length
+
+  if (needsEval) {
     const assignments = getStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
     const assignment = assignments.find(a =>
       String(a.id) === String(sub.assignmentId) ||
@@ -332,12 +356,8 @@ export function enrichSubmission(sub) {
       output: 'Test execution failed.'
     }))
 
-    if (!sub.executionOutput) {
-      sub.executionOutput = cumulativeLog || 'No output recorded'
-    }
-    if (!sub.networkLog) {
-      sub.networkLog = cumulativeNetwork || 'No network traffic recorded'
-    }
+    sub.executionOutput = cumulativeLog || 'Execution completed without log output.'
+    sub.networkLog = cumulativeNetwork || 'No network operations captured.'
   }
 
   // Always compute automatedScore strictly from testResults!
@@ -348,7 +368,15 @@ export function enrichSubmission(sub) {
 
 export function enrichAttempt(att) {
   if (!att) return att
-  if (!att.executionOutput || !att.networkLog || !att.testResults || !att.testResults.length) {
+  const needsEval = (att.status === 'TESTED' || att.status === 'SUBMITTED' || att.status === 'FAILED') &&
+                    (!att.executionOutput ||
+                     att.executionOutput === 'No output recorded' ||
+                     !att.networkLog ||
+                     att.networkLog === 'No network traffic recorded' ||
+                     !att.testResults ||
+                     !att.testResults.length)
+
+  if (needsEval) {
     const assignments = getStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
     const assignment = assignments.find(a =>
       String(a.id) === String(att.assignmentId) ||
@@ -398,18 +426,90 @@ export function enrichAttempt(att) {
       output: 'Test execution failed.'
     }))
 
-    if (!att.executionOutput) {
-      att.executionOutput = cumulativeLog || 'No output recorded'
-    }
-    if (!att.networkLog) {
-      att.networkLog = cumulativeNetwork || 'No network traffic recorded'
+    att.executionOutput = cumulativeLog || 'Execution completed without log output.'
+    att.networkLog = cumulativeNetwork || 'No network operations captured.'
+  }
+
+  // Always compute automatedScore strictly from testResults if tested!
+  if (att.testResults && att.testResults.length > 0) {
+    att.automatedScore = calculateAutomatedScore(att.testResults)
+  }
+
+  return att
+}
+
+export function enrichAssignmentForUser(assignment, user) {
+  if (!assignment) return assignment
+  const attempts = getStored(STORAGE_KEYS.ATTEMPTS, [])
+  const submissions = getStored(STORAGE_KEYS.SUBMISSIONS, [])
+
+  // If user is not a student (e.g. Faculty, Admin, or unauthenticated)
+  if (!user || user.role !== 'STUDENT') {
+    const assignAttempts = attempts.filter(a =>
+      String(a.assignmentId) === String(assignment.id) || a.assignmentSlug === assignment.slug
+    )
+    const assignSubmissions = submissions.filter(s =>
+      String(s.assignmentId) === String(assignment.id) || s.assignmentSlug === assignment.slug
+    )
+    const validScores = assignSubmissions
+      .map(s => s.facultyGrade != null ? Number(s.facultyGrade) : (s.automatedScore != null ? Number(s.automatedScore) : null))
+      .filter(s => s != null && !isNaN(s))
+    const avgScore = validScores.length > 0 ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : null
+
+    return {
+      ...assignment,
+      attempts: assignAttempts.length,
+      submissionsCount: assignSubmissions.length,
+      averageScore: avgScore
     }
   }
 
-  // Always compute automatedScore strictly from testResults!
-  att.automatedScore = calculateAutomatedScore(att.testResults)
+  // Student-specific metrics:
+  const userAttempts = attempts.filter(a =>
+    isMatchingStudent(a, user) &&
+    (String(a.assignmentId) === String(assignment.id) || a.assignmentSlug === assignment.slug)
+  )
+  const userSubmissions = submissions.filter(s =>
+    isMatchingStudent(s, user) &&
+    (String(s.assignmentId) === String(assignment.id) || s.assignmentSlug === assignment.slug)
+  )
 
-  return att
+  let submissionStatus = 'NOT_STARTED'
+  if (userSubmissions.length > 0) {
+    if (userSubmissions.some(s => s.status === 'REVIEWED')) {
+      submissionStatus = 'REVIEWED'
+    } else if (userSubmissions.some(s => s.status === 'RETURNED')) {
+      submissionStatus = 'RETURNED'
+    } else {
+      submissionStatus = 'SUBMITTED'
+    }
+  } else if (userAttempts.length > 0) {
+    if (userAttempts.some(a => a.status === 'TESTED')) {
+      submissionStatus = 'TESTED'
+    } else if (userAttempts.some(a => a.status === 'SUBMITTED')) {
+      submissionStatus = 'SUBMITTED'
+    } else {
+      submissionStatus = 'IN_PROGRESS'
+    }
+  }
+
+  let latestScore = null
+  if (userSubmissions.length > 0) {
+    const latestSub = userSubmissions[0]
+    latestScore = latestSub.facultyGrade != null ? latestSub.facultyGrade : latestSub.automatedScore
+  } else if (userAttempts.length > 0) {
+    const scoredAtt = userAttempts.find(a => a.automatedScore != null)
+    if (scoredAtt) latestScore = scoredAtt.automatedScore
+  }
+
+  return {
+    ...assignment,
+    attempts: userAttempts.length,
+    submissionStatus,
+    latestScore,
+    latestAttemptId: userAttempts.length > 0 ? userAttempts[0].id : null,
+    latestSubmissionId: userSubmissions.length > 0 ? userSubmissions[0].id : null
+  }
 }
 
 export function initMockDatabase() {
@@ -631,12 +731,12 @@ export async function handleMockApiRequest(path, options = {}) {
       found.status = body.status
       setStored(STORAGE_KEYS.ASSIGNMENTS, assignments)
       logAudit(currentUser.email, 'STATUS_ASSIGNMENT', 'ASSIGNMENT', `Changed ${found.title} status to ${body.status}`)
-      return found
+      return enrichAssignmentForUser(found, currentUser)
     }
 
     // List all assignments
     if ((path === '/api/assignments' || path === '/api/faculty/assignments' || path === '/api/admin/assignments') && method === 'GET') {
-      return assignments
+      return assignments.map(a => enrichAssignmentForUser(a, currentUser))
     }
 
     // Create new assignment: POST /api/faculty/assignments or /api/admin/assignments
@@ -679,7 +779,7 @@ export async function handleMockApiRequest(path, options = {}) {
       assignments.push(newAssignment)
       setStored(STORAGE_KEYS.ASSIGNMENTS, assignments)
       logAudit(currentUser.email, 'CREATE_ASSIGNMENT', 'ASSIGNMENT', `Created new assignment: ${newAssignment.title}`)
-      return newAssignment
+      return enrichAssignmentForUser(newAssignment, currentUser)
     }
 
     // Get single assignment
@@ -688,7 +788,7 @@ export async function handleMockApiRequest(path, options = {}) {
       const targetId = decodeURIComponent(parts[parts.length - 1])
       const found = assignments.find(a => a.id === targetId || a.slug === targetId)
       if (!found) throw new Error('Assignment not found')
-      return found
+      return enrichAssignmentForUser(found, currentUser)
     }
 
     // Update assignment
@@ -714,7 +814,7 @@ export async function handleMockApiRequest(path, options = {}) {
       }
       setStored(STORAGE_KEYS.ASSIGNMENTS, assignments)
       logAudit(currentUser.email, 'UPDATE_ASSIGNMENT', 'ASSIGNMENT', `Updated assignment: ${assignments[idx].title}`)
-      return assignments[idx]
+      return enrichAssignmentForUser(assignments[idx], currentUser)
     }
 
     // Delete assignment
@@ -736,7 +836,10 @@ export async function handleMockApiRequest(path, options = {}) {
     const assignments = getStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
     const assignment = assignments.find(a => a.id === body.assignmentId || a.slug === body.assignmentId) || assignments[0]
     const attempts = getStored(STORAGE_KEYS.ATTEMPTS, [])
-    const existing = attempts.filter(a => a.studentId === currentUser.id && a.assignmentId === assignment.id)
+    const existing = attempts.filter(a =>
+      isMatchingStudent(a, currentUser) &&
+      (String(a.assignmentId) === String(assignment.id) || a.assignmentSlug === assignment.slug)
+    )
 
     const newAttempt = {
       id: 'att-' + Date.now(),
@@ -758,6 +861,7 @@ export async function handleMockApiRequest(path, options = {}) {
     }
     attempts.unshift(newAttempt)
     setStored(STORAGE_KEYS.ATTEMPTS, attempts)
+    logAudit(currentUser.email, 'START_ATTEMPT', 'ASSIGNMENT', `Started attempt ${newAttempt.attemptNumber} on ${assignment.title}.`)
     return newAttempt
   }
 
@@ -765,7 +869,7 @@ export async function handleMockApiRequest(path, options = {}) {
     const attempts = getStored(STORAGE_KEYS.ATTEMPTS, [])
     const enriched = attempts.map(enrichAttempt)
     setStored(STORAGE_KEYS.ATTEMPTS, enriched)
-    return enriched.filter(a => a.studentId === currentUser.id)
+    return enriched.filter(a => isMatchingStudent(a, currentUser))
   }
 
   if (path.startsWith('/api/sessions/') && path.endsWith('/submit') && method === 'POST') {
@@ -773,6 +877,12 @@ export async function handleMockApiRequest(path, options = {}) {
     const attempts = getStored(STORAGE_KEYS.ATTEMPTS, [])
     const att = attempts.find(a => a.id === id)
     if (!att) throw new Error('Attempt not found')
+
+    if (body.solution) att.solution = body.solution
+    if (body.testResults && body.testResults.length) att.testResults = body.testResults
+    if (body.executionOutput) att.executionOutput = body.executionOutput
+    if (body.networkLog) att.networkLog = body.networkLog
+    if (body.automatedScore != null) att.automatedScore = body.automatedScore
 
     att.status = 'SUBMITTED'
     setStored(STORAGE_KEYS.ATTEMPTS, attempts)
@@ -788,7 +898,7 @@ export async function handleMockApiRequest(path, options = {}) {
       assignmentTitle: att.assignmentTitle,
       assignmentSlug: att.assignmentSlug || att.assignment?.slug,
       solution: att.solution,
-      automatedScore: att.automatedScore !== null && att.automatedScore !== undefined ? att.automatedScore : (att.testResults?.length ? calculateAutomatedScore(att.testResults) : 0),
+      automatedScore: att.automatedScore !== null && att.automatedScore !== undefined ? att.automatedScore : null,
       testResults: att.testResults || [],
       executionOutput: att.executionOutput || '',
       networkLog: att.networkLog || '',
@@ -801,7 +911,7 @@ export async function handleMockApiRequest(path, options = {}) {
     sub = enrichSubmission(sub)
     submissions.unshift(sub)
     setStored(STORAGE_KEYS.SUBMISSIONS, submissions)
-    logAudit(currentUser.email, 'SUBMIT', 'ASSIGNMENT', `Submitted assignment ${att.assignmentTitle}.`)
+    logAudit(currentUser.email, 'SUBMIT', 'ASSIGNMENT', `Submitted assignment ${att.assignmentTitle} (Score: ${sub.automatedScore}/100).`)
     return sub
   }
 
@@ -820,7 +930,7 @@ export async function handleMockApiRequest(path, options = {}) {
     const submissions = getStored(STORAGE_KEYS.SUBMISSIONS, [])
     const enriched = submissions.map(enrichSubmission)
     setStored(STORAGE_KEYS.SUBMISSIONS, enriched)
-    return enriched.filter(s => s.studentId === currentUser.id)
+    return enriched.filter(s => isMatchingStudent(s, currentUser))
   }
 
   if (path.startsWith('/api/submissions/')) {
@@ -835,9 +945,9 @@ export async function handleMockApiRequest(path, options = {}) {
 
   // === FACULTY ===
   if (path === '/api/faculty/dashboard') {
-    const submissions = getStored(STORAGE_KEYS.SUBMISSIONS, [])
+    const submissions = getStored(STORAGE_KEYS.SUBMISSIONS, []).map(enrichSubmission)
     const assignments = getStored(STORAGE_KEYS.ASSIGNMENTS, DEFAULT_ASSIGNMENTS)
-    const attempts = getStored(STORAGE_KEYS.ATTEMPTS, [])
+    const attempts = getStored(STORAGE_KEYS.ATTEMPTS, []).map(enrichAttempt)
     const users = getStored(STORAGE_KEYS.USERS, DEFAULT_USERS)
     return {
       totalExperiments: assignments.length,
@@ -871,10 +981,19 @@ export async function handleMockApiRequest(path, options = {}) {
   if (path === '/api/faculty/students') {
     const students = getStored(STORAGE_KEYS.USERS, DEFAULT_USERS).filter(u => u.role === 'STUDENT')
     const submissions = getStored(STORAGE_KEYS.SUBMISSIONS, [])
-    return students.map(s => ({
-      ...s,
-      submissionsCount: submissions.filter(sub => sub.studentId === s.id).length
-    }))
+    const attempts = getStored(STORAGE_KEYS.ATTEMPTS, [])
+    return students.map(s => {
+      const studentSubs = submissions.filter(sub => isMatchingStudent(sub, s))
+      const studentAtts = attempts.filter(att => isMatchingStudent(att, s))
+      const latestSub = studentSubs[0]
+      const latestScore = latestSub ? (latestSub.facultyGrade ?? latestSub.automatedScore) : (studentAtts[0]?.automatedScore ?? null)
+      return {
+        ...s,
+        submissionsCount: studentSubs.length,
+        attemptsCount: studentAtts.length,
+        latestScore
+      }
+    })
   }
 
   if (path === '/api/faculty/submissions') {

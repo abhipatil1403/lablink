@@ -58,5 +58,5 @@ export function AdminServers() {
 }
 export function AdminAudit() {
   const {data,loading,error}=useRemote(adminAudit, null, {interval: 4000})
-  return <><Header title="Audit history" description="Recent administrative changes, assignment attempts and reviews."/><DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Details</th></tr></thead><tbody>{data?.map(a=><tr key={a.id}><td>{new Date(a.createdAt).toLocaleString()}</td><td>{a.actor?.name||'System'}</td><td>{a.action}</td><td><code>{a.resource}</code></td><td>{a.details}</td></tr>)}</tbody></table></div></DataState></>
+  return <><Header title="Audit history" description="Recent administrative changes, assignment attempts and reviews."/><DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Details</th></tr></thead><tbody>{data?.map(a=><tr key={a.id}><td>{new Date(a.createdAt).toLocaleString()}</td><td>{typeof a.actor === 'object' ? (a.actor?.name || a.actor?.email || 'System') : (a.actor || 'System')}</td><td>{a.action}</td><td><code>{a.resource}</code></td><td>{a.details}</td></tr>)}</tbody></table></div></DataState></>
 }

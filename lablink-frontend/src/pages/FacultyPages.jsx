@@ -95,13 +95,15 @@ export function FacultyExperiments() {
       <div className="table-wrap">
         <table>
           <thead>
-            <tr><th>Assignment</th><th>Protocol</th><th>Difficulty</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
+            <tr><th>Assignment</th><th>Protocol</th><th>Difficulty</th><th>Attempts</th><th>Submissions</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {list.map(a=><tr key={a.id}>
               <td><strong>{a.title}</strong></td>
               <td><span className="chip">{a.protocol}</span></td>
               <td><span className="chip">{a.difficulty}</span></td>
+              <td>{a.attempts ?? 0}</td>
+              <td>{a.submissionsCount ?? 0}</td>
               <td>{a.deadline?new Date(a.deadline).toLocaleString():'None'}</td>
               <td><Status value={a.status}/></td>
               <td className="table-actions">
@@ -111,7 +113,7 @@ export function FacultyExperiments() {
               </td>
             </tr>)}
             {list.length === 0 && (
-              <tr><td colSpan={6} style={{textAlign: 'center', color: '#64748b'}}>No assignments available. Click "+ New assignment" above to create one.</td></tr>
+              <tr><td colSpan={8} style={{textAlign: 'center', color: '#64748b'}}>No assignments available. Click "+ New assignment" above to create one.</td></tr>
             )}
           </tbody>
         </table>
@@ -258,12 +260,12 @@ export function FacultyStudentDetails() {
   const {data,loading,error}=useRemote(loadStudentDetails,id, {interval: 5000})
   const [students,attempts,submissions]=data||[[],[],[]]
   const student=students.find(s=>s.id===id)
-  return <><Link className="back-link" to="/faculty/students">All students</Link><DataState loading={loading} error={error}>{student?<><Header title={student.name} description={student.email+' · '+student.status}/><h2>Assignment attempts</h2><AttemptsTable data={attempts.filter(a=>a.studentId===id)}/><h2>Submissions and grades</h2><SubmissionsTable data={submissions.filter(s=>s.studentId===id)}/></>:<div className="state-card">Student not found.</div>}</DataState></>
+  return <><Link className="back-link" to="/faculty/students">All students</Link><DataState loading={loading} error={error}>{student?<><Header title={student.name} description={student.email+' · '+student.status}/><h2>Assignment attempts</h2><AttemptsTable data={attempts.filter(a=>a.studentId===id || (student.email && a.studentEmail?.toLowerCase()===student.email.toLowerCase()))}/><h2>Submissions and grades</h2><SubmissionsTable data={submissions.filter(s=>s.studentId===id || (student.email && s.studentEmail?.toLowerCase()===student.email.toLowerCase()))}/></>:<div className="state-card">Student not found.</div>}</DataState></>
 }
 export function FacultyStudents() {
   const {data,loading,error}=useRemote(loadStudents, null, {interval: 5000})
   const [students,attempts]=data||[[],[]]
-  return <><Header title="Students" description="Registered students and their assignment activity."/><DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Attempts</th><th>Latest score</th></tr></thead><tbody>{students.map(s=>{const work=attempts.filter(a=>a.studentId===s.id);return <tr key={s.id}><td><Link to={'/faculty/students/'+s.id}>{s.name}</Link></td><td>{s.email}</td><td><Status value={s.status}/></td><td>{work.length}</td><td>{work[0]?.automatedScore??'—'}</td></tr>})}</tbody></table></div></DataState></>
+  return <><Header title="Students" description="Registered students and their assignment activity."/><DataState loading={loading} error={error}><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Attempts</th><th>Latest score</th></tr></thead><tbody>{students.map(s=>{const work=attempts.filter(a=>a.studentId===s.id || (s.email && a.studentEmail?.toLowerCase()===s.email.toLowerCase()));return <tr key={s.id}><td><Link to={'/faculty/students/'+s.id}>{s.name}</Link></td><td>{s.email}</td><td><Status value={s.status}/></td><td>{s.attemptsCount ?? work.length}</td><td>{s.latestScore ?? (work[0]?.automatedScore??'—')}</td></tr>})}</tbody></table></div></DataState></>
 }
 function SubmissionsTable({data=[]}) {
   return data.length?<div className="table-wrap"><table><thead><tr><th>Student</th><th>Assignment</th><th>Submitted</th><th>Status</th><th>Automated</th><th>Faculty</th><th></th></tr></thead><tbody>{data.map(s=><tr key={s.id}><td>{s.studentName}</td><td>{s.assignmentTitle}</td><td>{new Date(s.submittedAt).toLocaleString()}</td><td><Status value={s.status}/></td><td>{s.automatedScore}</td><td>{s.facultyGrade??'—'}</td><td><Link to={'/faculty/submissions/'+s.id}>Review</Link></td></tr>)}</tbody></table></div>:<div className="state-card">No submissions found.</div>

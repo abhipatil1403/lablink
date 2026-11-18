@@ -14,6 +14,7 @@ function AssignmentCard({assignment}) {
   const concepts = assignment.networkingConcepts || assignment.concepts || []
   const submissionStatus = assignment.submissionStatus || 'NOT_STARTED'
   const statusFormatted = typeof submissionStatus === 'string' ? submissionStatus.replaceAll('_', ' ') : 'NOT STARTED'
+  const attemptCount = assignment.attempts ?? 0
 
   return (
     <article className="experiment-card">
@@ -31,7 +32,8 @@ function AssignmentCard({assignment}) {
         {concepts.map(concept => <span className="chip" key={concept}>{concept}</span>)}
       </div>
       <p className="subtle-note">
-        {assignment.attempts ?? 0} attempts · {statusFormatted}
+        {attemptCount} {attemptCount === 1 ? 'attempt' : 'attempts'} · {statusFormatted}
+        {assignment.latestScore !== null && assignment.latestScore !== undefined ? ` · Score: ${assignment.latestScore}/100` : ''}
         {assignment.deadline && !isNaN(new Date(assignment.deadline).getTime()) ? ' · Due ' + new Date(assignment.deadline).toLocaleString() : ''}
       </p>
       <Link className="card-link" to={'/assignment/' + assignment.id}>
@@ -165,6 +167,12 @@ export function ExperimentDetails() {
                   <p>{a.serverRequirement || 'Controlled network service'}</p>
                   <Status value={a.status || 'ACTIVE'}/>
                   <p>{a.deadline && !isNaN(new Date(a.deadline).getTime()) ? 'Due ' + new Date(a.deadline).toLocaleString() : 'No deadline set'}</p>
+                  {a.attempts != null && (
+                    <p className="subtle-note" style={{marginTop: '0.6rem'}}>
+                      <strong>Your status:</strong> {typeof a.submissionStatus === 'string' ? a.submissionStatus.replaceAll('_', ' ') : 'NOT STARTED'} ({a.attempts} {a.attempts === 1 ? 'attempt' : 'attempts'})
+                      {a.latestScore != null ? ` · Score: ${a.latestScore}/100` : ''}
+                    </p>
+                  )}
                 </section>
                 <section className="content-card">
                   <h2>Evaluation</h2>
@@ -172,8 +180,26 @@ export function ExperimentDetails() {
                     {testCases.map(t => <li key={t.id}>{t.name} ({t.weight} weight)</li>)}
                   </ul>
                 </section>
+                {a.latestAttemptId && a.submissionStatus !== 'SUBMITTED' && a.submissionStatus !== 'REVIEWED' && (
+                  <Link
+                    to={'/attempt/' + a.latestAttemptId}
+                    className="secondary-button"
+                    style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', textDecoration: 'none', marginBottom: '0.6rem'}}
+                  >
+                    Resume ongoing attempt <ArrowRight size={16}/>
+                  </Link>
+                )}
+                {a.latestSubmissionId && (
+                  <Link
+                    to={'/student/submissions/' + a.latestSubmissionId}
+                    className="secondary-button"
+                    style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', textDecoration: 'none', marginBottom: '0.6rem'}}
+                  >
+                    View latest submission <ArrowRight size={16}/>
+                  </Link>
+                )}
                 <button className="primary-button" onClick={start} disabled={busy || a.status !== 'ACTIVE'}>
-                  {busy ? 'Starting…' : 'Start assignment'} <ArrowRight size={16}/>
+                  {busy ? 'Starting…' : (a.attempts > 0 ? 'Start new attempt' : 'Start assignment')} <ArrowRight size={16}/>
                 </button>
                 {failure && <p className="form-error" role="alert">{failure}</p>}
               </aside>
